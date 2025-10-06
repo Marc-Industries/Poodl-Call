@@ -24,8 +24,21 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             text-align: center;
         }
-        .active-status { color: #10b981; } /* Green for Active */
-        .upcoming-status { color: #f59e0b; } /* Amber for Upcoming */
+        /* Colore per lo stato ATTIVO (verde) */
+        .active-status { color: #10b981; } 
+        
+        /* NUOVO COLORE: Viola scuro/Magenta per lo stato UPCOMING (Prossima Call) */
+        .upcoming-status { color: #5A3FA3; } /* Tonalità dal gradiente Poodl */
+        
+        /* Gradiente personalizzato per il bottone in stato UPCOMING */
+        .poodl-gradient {
+            background: linear-gradient(90deg, #1f4287 0%, #a33f52 100%); /* Blu-Viola a Rosso-Magenta */
+            transition: opacity 0.3s ease, transform 0.1s ease;
+        }
+        .poodl-gradient:hover {
+            opacity: 0.9;
+        }
+        
         .loading-icon, .status-icon { margin: 0 auto 15px; }
     </style>
 </head>
@@ -47,7 +60,7 @@
     <p id="status-details" class="text-md text-gray-600 mt-2">Attendere prego.</p>
     
     <!-- Bottone dinamico: mostra il link attivo O il link di info -->
-    <a id="dynamic-button" class="mt-6 inline-block bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-xl transition duration-150 ease-in-out shadow-lg opacity-0 pointer-events-none" href="#"></a>
+    <a id="dynamic-button" class="mt-6 inline-block text-white font-bold py-3 px-6 rounded-xl transition duration-150 ease-in-out shadow-lg opacity-0 pointer-events-none" href="#"></a>
 </div>
 
 <script>
@@ -58,8 +71,6 @@
     // TUTTE LE CALL SONO DI 1 ORA.
     
     const SCHEDULE = [
-        //test
-        //{ day: 1, startHour: 13, endHour: 14, link: "https://us06web.zoom.us/j/87025443241?pwd=zfbQ85grUb4JDmmZFSxu3wbSFpGuKN.1", description: "test" },
         // Martedì (2)
         { day: 2, startHour: 11, endHour: 12, link: "https://us06web.zoom.us/j/87025443241?pwd=zfbQ85grUb4JDmmZFSxu3wbSFpGuKN.1", description: "Call Martedì Mattina (11:00 - 12:00)" },
         { day: 2, startHour: 14, endHour: 15, link: "https://us06web.zoom.us/j/85044418449?pwd=Fd3EkXkk7sbSLiQjbYZXaXcZqKqvBc.1", description: "Call Martedì Pomeriggio (14:00 - 15:00)" },
@@ -79,7 +90,6 @@
     ].sort((a, b) => a.day - b.day || a.startHour - b.startHour); 
     
     // Link di default quando non ci sono call attive o in programma.
-    // ⚠️ SOSTITUISCI QUESTO URL CON LA TUA PAGINA INFORMATIVA SULLA PROGRAMMAZIONE ⚠️
     const FALLBACK_URL = "https://poodl.org/"; 
 
     // --------------------------------------------------------
@@ -112,12 +122,11 @@
         }
 
         // 2. Cerca la PROSSIMA CALL (Oggi o nei giorni seguenti)
-        const totalCalls = SCHEDULE.length;
         
         for (let i = 0; i < 7; i++) {
             const checkDay = (currentDay + i) % 7; // Giorno da 0 a 6
             
-            // Filtra la SCHEDULE per il giorno corrente e ordina per ora (già ordinato, ma per sicurezza)
+            // Filtra la SCHEDULE per il giorno corrente e ordina per ora
             const callsForDay = SCHEDULE.filter(call => call.day === checkDay);
 
             for (const call of callsForDay) {
@@ -156,11 +165,14 @@
 
         // Nasconde l'icona di caricamento rotante
         iconElement.innerHTML = ''; 
+        // Rimuove classi dinamiche predefinite per applicare il nuovo stile Poodl
+        buttonElement.classList.remove('bg-indigo-500', 'hover:bg-indigo-600', 'bg-amber-500', 'hover:bg-amber-600', 'bg-blue-500', 'hover:bg-blue-600');
+
         buttonElement.classList.add('opacity-100', 'pointer-events-auto');
 
         switch (statusResult.status) {
             case 'ACTIVE':
-                // CASO 1: CALL ATTIVA
+                // CASO 1: CALL ATTIVA (Verde)
                 titleElement.textContent = "Sei In Diretta Ora!";
                 titleElement.classList.add('active-status');
                 detailsElement.textContent = `La call è attiva adesso: ${statusResult.call.description}. Verrai reindirizzato.`;
@@ -168,9 +180,11 @@
                 // Aggiorna l'icona con un check verde
                 iconElement.innerHTML = '<svg class="w-8 h-8 active-status" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>';
                 
-                // Aggiorna il bottone
+                // Aggiorna il bottone (Usa il gradiente Poodl anche per Active, è più coerente)
                 buttonElement.textContent = "Clicca qui per Entrare";
                 buttonElement.href = statusResult.call.link;
+                buttonElement.classList.add('poodl-gradient');
+
 
                 // Esegue il redirect dopo un breve ritardo per feedback visivo
                 setTimeout(() => {
@@ -179,7 +193,7 @@
                 break;
 
             case 'UPCOMING':
-                // CASO 2: CALL IN ARRIVO
+                // CASO 2: CALL IN ARRIVO (Colore personalizzato #5A3FA3)
                 const nextTime = statusResult.nextCallTime;
                 
                 // Formatta l'orario e il giorno in italiano
@@ -187,34 +201,36 @@
                 const formattedTime = nextTime.toLocaleTimeString('it-IT', dateOptions);
 
                 titleElement.textContent = "Non siamo in diretta adesso.";
-                titleElement.classList.add('upcoming-status');
-                
-                detailsElement.innerHTML = `La prossima call è in programma per:<br><strong class="font-bold">${formattedTime}</strong><br>(${statusResult.call.description})`;
+                titleElement.classList.remove('text-gray-800'); // Rimuove il testo grigio di default
+                titleElement.classList.add('upcoming-status'); // Applica il colore viola/magenta
+
+                detailsElement.innerHTML = `La **prossima call** è in programma per:<br><strong class="font-bold">${formattedTime}</strong><br>(${statusResult.call.description})`;
                 detailsElement.classList.remove('text-gray-600');
                 detailsElement.classList.add('text-gray-700', 'font-medium');
 
-                // Aggiorna l'icona con un orologio giallo
+                // Aggiorna l'icona con l'orologio nel nuovo colore
                 iconElement.innerHTML = '<svg class="w-8 h-8 upcoming-status" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
 
-                // Aggiorna il bottone con il link di fallback informativo
+                // Aggiorna il bottone con il link di fallback informativo e il gradiente
                 buttonElement.textContent = "Visita il Nostro Sito";
                 buttonElement.href = FALLBACK_URL;
-                buttonElement.classList.add('bg-amber-500', 'hover:bg-amber-600');
+                buttonElement.classList.add('poodl-gradient');
+
                 break;
             
             case 'NONE':
             default:
-                // CASO 3: NESSUNA CALL ATTIVA O PROSSIMA (Fallback assoluto, es. fine settimana)
+                // CASO 3: NESSUNA CALL ATTIVA O PROSSIMA (Fallback assoluto)
                 titleElement.textContent = "Nessuna Call in Programma";
                 detailsElement.textContent = "Non ci sono call Zoom in diretta o previste per i prossimi giorni. Consulta la programmazione.";
                 
-                // Aggiorna l'icona con un'informazione blu
+                // Aggiorna l'icona con un'informazione (lasciamo il blu standard, come un colore neutro)
                 iconElement.innerHTML = '<svg class="w-8 h-8 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>';
                 
-                // Aggiorna il bottone con il link di fallback informativo
+                // Aggiorna il bottone con il link di fallback informativo e il gradiente
                 buttonElement.textContent = "Vedi la Programmazione Completa";
                 buttonElement.href = FALLBACK_URL;
-                buttonElement.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                buttonElement.classList.add('poodl-gradient');
                 break;
         }
     }
