@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poodl Meeting Status</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Styles and Tailwind animations */
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f4f8;
+            transition: background-color 0.3s ease;
+        }
+        .container {
+            max-width: 400px;
+            padding: 30px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        /* Color for ACTIVE status (Green) */
+        .active-status { color: #10b981; } 
+        
+        /* Custom Poodl Color for UPCOMING status (Violet/Magenta) */
+        .upcoming-status { color: #5A3FA3; } 
+        
+        /* Custom Poodl Gradient for the button */
+        .poodl-gradient {
+            background: linear-gradient(90deg, #1f4287 0%, #a33f52 100%); /* Blue-Violet to Red-Magenta */
+            transition: opacity 0.3s ease, transform 0.1s ease;
+        }
+        .poodl-gradient:hover {
+            opacity: 0.9;
+        }
+
+        /* Style for the language switch icon */
+        .lang-switch {
+            position: fixed; /* Fixed position */
+            top: 20px;
+            left: 20px;
+            font-size: 32px; /* Emoji size */
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            text-decoration: none;
+            z-index: 10; /* Ensure it's on top */
+        }
+        .lang-switch:hover {
+            transform: scale(1.1);
+        }
+
+        .loading-icon, .status-icon { margin: 0 auto 15px; }
+    </style>
+</head>
+<body>
+
+<!-- Language Switch Icon (Italian Flag to go back to the Italian page) -->
+<a href="/index.html" class="lang-switch" title="Passa a Italiano">🇮🇹</a>
+
+<div class="container">
+    <!-- Initial Loading Icon / Status Icon -->
+    <div id="status-icon" class="loading-icon">
+        <svg class="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>
+
+    <!-- Main Status Message -->
+    <h3 id="status-title" class="text-xl font-bold text-gray-800">Checking call status...</h3>
+    
+    <!-- Details (Time, Fallback Link) -->
+    <p id="status-details" class="text-md text-gray-600 mt-2">Please wait.</p>
+    
+    <!-- Dynamic Button: shows active link OR info link -->
+    <a id="dynamic-button" class="mt-6 inline-block text-white font-bold py-3 px-6 rounded-xl transition duration-150 ease-in-out shadow-lg opacity-0 pointer-events-none" href="#"></a>
+</div>
+
+<script>
+    // --------------------------------------------------------
+    // CONFIGURATION: SCHEDULE AND LINKS (UK TIME ZONE)
+    // --------------------------------------------------------
+    // Structure: day (0=Sun, 1=Mon, ..., 6=Sat), startHour (0-23), endHour (0-23), link, description
+    // ALL CALLS ARE 1 HOUR LONG.
+    
+    const SCHEDULE = [
+        // Monday (1): 8:30 AM
+        { day: 1, startHour: 8, startMinute: 30, endHour: 9, endMinute: 30, link: "LINK_LUNEDI_830AM", description: "Monday Morning Call (8:30 AM UK Time)" },
+        
+        // Tuesday (2): 7:00 PM
+        { day: 2, startHour: 19, startMinute: 0, endHour: 20, endMinute: 0, link: "LINK_MARTEDI_700PM", description: "Tuesday Evening Call (7:00 PM UK Time)" },
+        
+        // Wednesday (3): 6:00 PM
+        { day: 3, startHour: 18, startMinute: 0, endHour: 19, endMinute: 0, link: "LINK_MERCOLEDI_600PM", description: "Wednesday Evening Call (6:00 PM UK Time)" },
+        
+        // Thursday (4): 8:30 AM & 5:00 PM
+        { day: 4, startHour: 8, startMinute: 30, endHour: 9, endMinute: 30, link: "LINK_GIOVEDI_830AM", description: "Thursday Morning Call (8:30 AM UK Time)" },
+        { day: 4, startHour: 17, startMinute: 0, endHour: 18, endMinute: 0, link: "LINK_GIOVEDI_500PM", description: "Thursday Afternoon Call (5:00 PM UK Time)" },
+        
+        // Friday (5): 8:30 AM & 5:00 PM
+        { day: 5, startHour: 8, startMinute: 30, endHour: 9, endMinute: 30, link: "LINK_VENERDI_830AM", description: "Friday Morning Call (8:30 AM UK Time)" },
+        { day: 5, startHour: 17, startMinute: 0, endHour: 18, endMinute: 0, link: "LINK_VENERDI_500PM", description: "Friday Afternoon Call (5:00 PM UK Time)" },
+        
+        // Saturday (6) and Sunday (0) are excluded, leading to the NONE/FALLBACK state.
+    ].sort((a, b) => a.day - b.day || a.startHour - b.startHour || a.startMinute - b.startMinute); 
+    
+    // Default link when no calls are active or scheduled.
+    const FALLBACK_URL = "https://poodl.org/"; 
+
+    // --------------------------------------------------------
+    // LOGIC FUNCTIONS
+    // --------------------------------------------------------
+
+    /**
+     * Gets the current call status (Active, Upcoming, or None).
+     * This function now uses the UK Time Zone (GMT/BST) for comparison.
+     */
+    function getCallStatus() {
+        // Create a new Date object representing the current moment in time.
+        const now = new Date();
+        
+        // --- IMPORTANT: Calculate current time based on UK Time Zone (GMT/BST) ---
+        // Since the user schedule is based on UK Time, we need to adjust the current
+        // local time to reflect the time in London (GMT/BST).
+        
+        // 1. Get the current UK time offset in minutes (e.g., 60 for CEST during summer).
+        // This is necessary because Date methods use the browser's local timezone.
+        const timezoneOffset = now.getTimezoneOffset(); // Local offset in minutes
+        
+        // To get the UK hour (which might be GMT or BST depending on the date), 
+        // we can calculate the UTC time and then add or subtract the UK offset from UTC.
+        // A simpler (but slightly less robust) method is to convert the local time 
+        // to a UK Time string and parse the hour/day.
+        
+        // For simplicity and compatibility, we will use the Date methods 
+        // and rely on a fixed offset if the calls are always relative to UK time 
+        // regardless of the user's location.
+        // Since we cannot reliably determine if UK is on BST (+1) or GMT (0) from here,
+        // we will use the toLocaleString method with 'en-GB' and 'Europe/London' 
+        // which handles daylight savings automatically.
+
+        // Get the current time components in the UK timezone
+        const ukTimeOptions = { 
+            timeZone: 'Europe/London', 
+            weekday: 'short', // 0-6
+            hour: 'numeric',   // 0-23
+            minute: 'numeric', // 0-59
+        };
+        
+        const ukTimeString = now.toLocaleString('en-GB', ukTimeOptions);
+        
+        // Since parsing locale strings can be tricky, let's just get the raw components 
+        // from a specific Date object adjusted for the UK timezone.
+        
+        // Re-calculate 'now' based on UK timezone (GMT/BST)
+        const ukTimeNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+        
+        const currentDay = ukTimeNow.getDay(); // 0 (Sun) to 6 (Sat)
+        const currentHour = ukTimeNow.getHours();
+        const currentMinute = ukTimeNow.getMinutes();
+        
+        const nowMinutes = currentHour * 60 + currentMinute;
+        // --- END UK TIME CALCULATION ---
+
+        
+        // 1. Check for ACTIVE CALL TODAY (Immediate Redirect)
+        for (const call of SCHEDULE) {
+            if (call.day === currentDay) {
+                const startMinutes = call.startHour * 60 + call.startMinute;
+                const endMinutes = call.endHour * 60 + call.endMinute;
+
+                // Check if current time is between start and end time (inclusive start, exclusive end)
+                if (nowMinutes >= startMinutes && nowMinutes < endMinutes) {
+                    return { status: 'ACTIVE', call: call }; // Active call found
+                }
+            }
+        }
+
+        // 2. Check for UPCOMING CALL (Today or following days)
+        for (let i = 0; i < 7; i++) {
+            const checkDay = (currentDay + i) % 7; // Day from 0 to 6
+            
+            const callsForDay = SCHEDULE.filter(call => call.day === checkDay);
+
+            for (const call of callsForDay) {
+                // Get the scheduled start time of the next call in the user's local timezone
+                // We start from the UK time 'now' and adjust the date/time
+                const nextCallTimeUK = new Date(ukTimeNow);
+                
+                // Adjust the date if the call is on a future day (i > 0)
+                if (i > 0) {
+                     nextCallTimeUK.setDate(ukTimeNow.getDate() + i);
+                }
+                
+                nextCallTimeUK.setHours(call.startHour, call.startMinute, 0, 0); // Set start time
+
+                // Compare the full Date objects (current UK time vs next call UK time)
+                if (ukTimeNow.getTime() < nextCallTimeUK.getTime()) {
+                    // To display the time correctly to the user, we should use the user's local date object:
+                    const nextCallTimeLocal = new Date(now);
+                    
+                    // We need to determine the day difference in the local calendar to set the correct date
+                    const daysToAdd = nextCallTimeUK.getDate() - ukTimeNow.getDate();
+                    nextCallTimeLocal.setDate(now.getDate() + daysToAdd);
+
+                    // Set the hours/minutes based on the UK time schedule, 
+                    // relying on toLocaleTimeString later to format correctly.
+                    // NOTE: This approach is complex due to cross-timezone scheduling. 
+                    // Given the constraint of 1 file and no external libraries, 
+                    // we will display the time based on the local system time but label it as UK Time.
+                    
+                    // For display, we use the UK time object created above,
+                    // but we will format it using the explicit UK timezone setting in updateUI.
+
+                    return { status: 'UPCOMING', call: call, nextCallTime: nextCallTimeUK };
+                } 
+            }
+        }
+
+        // 3. No call found
+        return { status: 'NONE' };
+    }
+
+    /**
+     * Updates the UI based on the status.
+     */
+    function updateUI(statusResult) {
+        const titleElement = document.getElementById('status-title');
+        const detailsElement = document.getElementById('status-details');
+        const buttonElement = document.getElementById('dynamic-button');
+        const iconElement = document.getElementById('status-icon');
+
+        // Hide rotating loading icon
+        iconElement.innerHTML = ''; 
+        // Remove old dynamic classes
+        buttonElement.classList.remove('bg-indigo-500', 'hover:bg-indigo-600', 'bg-amber-500', 'hover:bg-amber-600', 'bg-blue-500', 'hover:bg-blue-600');
+
+        buttonElement.classList.add('opacity-100', 'pointer-events-auto');
+
+        switch (statusResult.status) {
+            case 'ACTIVE':
+                // CASE 1: ACTIVE CALL (Green)
+                titleElement.textContent = "You Are Live Now!";
+                titleElement.classList.add('active-status');
+                detailsElement.textContent = `The call is currently active: ${statusResult.call.description}. Redirecting you now.`;
+                
+                // Update icon with green checkmark
+                iconElement.innerHTML = '<svg class="w-8 h-8 active-status" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>';
+                
+                // Update button
+                buttonElement.textContent = "Click Here to Join";
+                buttonElement.href = statusResult.call.link;
+                buttonElement.classList.add('poodl-gradient');
+
+                // Redirect after a short delay
+                setTimeout(() => {
+                    window.location.replace(statusResult.call.link);
+                }, 1500);
+                break;
+
+            case 'UPCOMING':
+                // CASE 2: UPCOMING CALL (Custom Color #5A3FA3)
+                const nextTime = statusResult.nextCallTime;
+                
+                // Format the time and day for UK Time Zone
+                const dateOptions = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' };
+                const formattedTime = nextTime.toLocaleTimeString('en-US', dateOptions);
+
+                titleElement.textContent = "We are not live right now.";
+                titleElement.classList.remove('text-gray-800'); 
+                titleElement.classList.add('upcoming-status'); 
+
+                detailsElement.innerHTML = `The **next call** is scheduled for:<br><strong class="font-bold">${formattedTime} (UK Time)</strong><br>(${statusResult.call.description})`;
+                detailsElement.classList.remove('text-gray-600');
+                detailsElement.classList.add('text-gray-700', 'font-medium');
+
+                // Update icon with custom color clock
+                iconElement.innerHTML = '<svg class="w-8 h-8 upcoming-status" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+
+                // Update button with fallback link and gradient
+                buttonElement.textContent = "Visit Our Website";
+                buttonElement.href = FALLBACK_URL;
+                buttonElement.classList.add('poodl-gradient');
+
+                break;
+            
+            case 'NONE':
+            default:
+                // CASE 3: NO CALL SCHEDULED (Absolute Fallback)
+                titleElement.textContent = "No Calls Scheduled";
+                detailsElement.textContent = "There are no live or upcoming Zoom calls scheduled for the next few days. Please check the schedule.";
+                
+                // Update icon with custom color info icon
+                iconElement.innerHTML = '<svg class="w-8 h-8 upcoming-status" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>';
+                
+                // Update button with fallback link and gradient
+                buttonElement.textContent = "View Full Schedule";
+                buttonElement.href = FALLBACK_URL;
+                buttonElement.classList.add('poodl-gradient');
+                break;
+        }
+    }
+
+    // --------------------------------------------------------
+    // START
+    // --------------------------------------------------------
+
+    const status = getCallStatus();
+    updateUI(status);
+</script>
+
+</body>
+</html>
