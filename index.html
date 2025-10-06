@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Zoom Unica</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Stile personalizzato e animazioni Tailwind */
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f4f8;
+            transition: background-color 0.3s ease;
+        }
+        .container {
+            max-width: 400px;
+            padding: 30px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .active-status { color: #10b981; } /* Green for Active */
+        .upcoming-status { color: #f59e0b; } /* Amber for Upcoming */
+        .loading-icon, .status-icon { margin: 0 auto 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Icona di caricamento iniziale/status -->
+    <div id="status-icon" class="loading-icon">
+        <svg class="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>
+
+    <!-- Messaggio di stato principale -->
+    <h3 id="status-title" class="text-xl font-bold text-gray-800">Verifica lo stato della call...</h3>
+    
+    <!-- Dettagli (Orario, Link di fallback) -->
+    <p id="status-details" class="text-md text-gray-600 mt-2">Attendere prego.</p>
+    
+    <!-- Bottone dinamico: mostra il link attivo O il link di info -->
+    <a id="dynamic-button" class="mt-6 inline-block bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-xl transition duration-150 ease-in-out shadow-lg opacity-0 pointer-events-none" href="#"></a>
+</div>
+
+<script>
+    // --------------------------------------------------------
+    // CONFIGURAZIONE: DEFINIZIONE ORARI E LINK
+    // --------------------------------------------------------
+    // Struttura: day (0=Dom, 1=Lun, ..., 6=Sab), startHour (0-23), endHour (0-23), link, description
+    // TUTTE LE CALL SONO DI 1 ORA.
+    
+    const SCHEDULE = [
+        // Martedì (2)
+        { day: 2, startHour: 11, endHour: 12, link: "https://us06web.zoom.us/j/87025443241?pwd=zfbQ85grUb4JDmmZFSxu3wbSFpGuKN.1", description: "Call Martedì Mattina (11:00 - 12:00)" },
+        { day: 2, startHour: 14, endHour: 15, link: "https://us06web.zoom.us/j/85044418449?pwd=Fd3EkXkk7sbSLiQjbYZXaXcZqKqvBc.1", description: "Call Martedì Pomeriggio (14:00 - 15:00)" },
+        
+        // Mercoledì (3)
+        { day: 3, startHour: 14, endHour: 15, link: "https://us06web.zoom.us/j/89155346246?pwd=iTXDLkkjbLtX46GpMP26vv0MlQfP2x.1", description: "Call Mercoledì Pomeriggio (14:00 - 15:00)" },
+        { day: 3, startHour: 20, endHour: 21, link: "https://us06web.zoom.us/j/86913335217?pwd=YEjFoRXA2EnD6nFPaWLgQuEXYyCUPa.1", description: "Call Mercoledì Sera (20:00 - 21:00)" },
+        
+        // Giovedì (4)
+        { day: 4, startHour: 14, endHour: 15, link: "https://us06web.zoom.us/j/83737475239?pwd=a3ra74dsr2I32AsOeH6X3AOs3E3zUe.1", description: "Call Giovedì Pomeriggio (14:00 - 15:00)" },
+        
+        // Venerdì (5)
+        { day: 5, startHour: 11, endHour: 12, link: "https://us06web.zoom.us/j/87874013891?pwd=FNMPs3UQdMaAVOT7EvgVzbrURr5Sfv.1", description: "Call Venerdì Mattina (11:00 - 12:00)" },
+        { day: 5, startHour: 19, endHour: 20, link: "https://us06web.zoom.us/j/84274225106?pwd=2hFIR1lDKNCntqfRoBnebVCtSXrNyN.1", description: "Call Venerdì Sera (19:00 - 20:00)" },
+        
+        // Lunedì (1), Sabato (6) e Domenica (0) sono esclusi dalla programmazione e attivano lo stato NONE/FALLBACK.
+    ].sort((a, b) => a.day - b.day || a.startHour - b.startHour); 
+    
+    // Link di default quando non ci sono call attive o in programma.
+    // ⚠️ SOSTITUISCI QUESTO URL CON LA TUA PAGINA INFORMATIVA SULLA PROGRAMMAZIONE ⚠️
+    const FALLBACK_URL = "https://poodl.org/"; 
+
+    // --------------------------------------------------------
+    // FUNZIONI DI LOGICA
+    // --------------------------------------------------------
+
+    /**
+     * Calcola lo stato attuale (Attiva, Prossima, o Non Attiva).
+     */
+    function getCallStatus() {
+        const now = new Date();
+        const currentDay = now.getDay(); 
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        
+        // 1. Cerca la CALL ATTIVA OGGI (Redirect Immediato)
+        for (const call of SCHEDULE) {
+            // Se è il giorno giusto
+            if (call.day === currentDay) {
+                // Calcola l'orario di inizio e fine in minuti per una comparazione più precisa
+                const startMinutes = call.startHour * 60;
+                const endMinutes = call.endHour * 60;
+                const nowMinutes = currentHour * 60 + currentMinute;
+
+                // Verifica che l'ora corrente (con i minuti) sia compresa tra inizio e fine call
+                if (nowMinutes >= startMinutes && nowMinutes < endMinutes) {
+                    return { status: 'ACTIVE', call: call }; // Trovata call attiva
+                }
+            }
+        }
+
+        // 2. Cerca la PROSSIMA CALL (Oggi o nei giorni seguenti)
+        const totalCalls = SCHEDULE.length;
+        
+        for (let i = 0; i < 7; i++) {
+            const checkDay = (currentDay + i) % 7; // Giorno da 0 a 6
+            
+            // Filtra la SCHEDULE per il giorno corrente e ordina per ora (già ordinato, ma per sicurezza)
+            const callsForDay = SCHEDULE.filter(call => call.day === checkDay);
+
+            for (const call of callsForDay) {
+                const nextCallTime = new Date(now);
+                
+                // Aggiusta la data se la call è in un giorno futuro (i > 0)
+                if (i > 0) {
+                     nextCallTime.setDate(now.getDate() + i);
+                }
+                
+                nextCallTime.setHours(call.startHour, 0, 0, 0); // Imposta l'ora di inizio
+                
+                // Se la call è OGGI, verifica che non sia già passata l'ora
+                if (i === 0 && now.getTime() < nextCallTime.getTime()) {
+                     return { status: 'UPCOMING', call: call, nextCallTime: nextCallTime };
+                } 
+                // Se la call è in un giorno FUTURO (i > 0)
+                else if (i > 0) {
+                    return { status: 'UPCOMING', call: call, nextCallTime: nextCallTime };
+                }
+            }
+        }
+
+        // 3. Nessuna call trovata (Dovrebbe accadere solo se tutte le call sono passate per la settimana)
+        return { status: 'NONE' };
+    }
+
+    /**
+     * Aggiorna la UI in base allo stato.
+     */
+    function updateUI(statusResult) {
+        const titleElement = document.getElementById('status-title');
+        const detailsElement = document.getElementById('status-details');
+        const buttonElement = document.getElementById('dynamic-button');
+        const iconElement = document.getElementById('status-icon');
+
+        // Nasconde l'icona di caricamento rotante
+        iconElement.innerHTML = ''; 
+        buttonElement.classList.add('opacity-100', 'pointer-events-auto');
+
+        switch (statusResult.status) {
+            case 'ACTIVE':
+                // CASO 1: CALL ATTIVA
+                titleElement.textContent = "Sei In Diretta Ora!";
+                titleElement.classList.add('active-status');
+                detailsElement.textContent = `La call è attiva adesso: ${statusResult.call.description}. Verrai reindirizzato.`;
+                
+                // Aggiorna l'icona con un check verde
+                iconElement.innerHTML = '<svg class="w-8 h-8 active-status" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>';
+                
+                // Aggiorna il bottone
+                buttonElement.textContent = "Clicca qui per Entrare";
+                buttonElement.href = statusResult.call.link;
+
+                // Esegue il redirect dopo un breve ritardo per feedback visivo
+                setTimeout(() => {
+                    window.location.replace(statusResult.call.link);
+                }, 1500);
+                break;
+
+            case 'UPCOMING':
+                // CASO 2: CALL IN ARRIVO
+                const nextTime = statusResult.nextCallTime;
+                
+                // Formatta l'orario e il giorno in italiano
+                const dateOptions = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
+                const formattedTime = nextTime.toLocaleTimeString('it-IT', dateOptions);
+
+                titleElement.textContent = "Non siamo in diretta adesso.";
+                titleElement.classList.add('upcoming-status');
+                
+                detailsElement.innerHTML = `La **prossima call** è in programma per:<br><strong class="font-bold">${formattedTime}</strong><br>(${statusResult.call.description})`;
+                detailsElement.classList.remove('text-gray-600');
+                detailsElement.classList.add('text-gray-700', 'font-medium');
+
+                // Aggiorna l'icona con un orologio giallo
+                iconElement.innerHTML = '<svg class="w-8 h-8 upcoming-status" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+
+                // Aggiorna il bottone con il link di fallback informativo
+                buttonElement.textContent = "Vedi la Programmazione Completa";
+                buttonElement.href = FALLBACK_URL;
+                buttonElement.classList.add('bg-amber-500', 'hover:bg-amber-600');
+                break;
+            
+            case 'NONE':
+            default:
+                // CASO 3: NESSUNA CALL ATTIVA O PROSSIMA (Fallback assoluto, es. fine settimana)
+                titleElement.textContent = "Nessuna Call in Programma";
+                detailsElement.textContent = "Non ci sono call Zoom in diretta o previste per i prossimi giorni. Consulta la programmazione.";
+                
+                // Aggiorna l'icona con un'informazione blu
+                iconElement.innerHTML = '<svg class="w-8 h-8 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>';
+                
+                // Aggiorna il bottone con il link di fallback informativo
+                buttonElement.textContent = "Vedi la Programmazione Completa";
+                buttonElement.href = FALLBACK_URL;
+                buttonElement.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                break;
+        }
+    }
+
+    // --------------------------------------------------------
+    // AVVIO
+    // --------------------------------------------------------
+
+    const status = getCallStatus();
+    updateUI(status);
+</script>
+
+</body>
+</html>
