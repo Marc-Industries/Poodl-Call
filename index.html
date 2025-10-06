@@ -2,10 +2,10 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meeting Poodl</title>
+    <title>Meeting Poodl ITA</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Stile personalizzato e animazioni Tailwind */
+     
         body {
             font-family: 'Inter', sans-serif;
             display: flex;
@@ -27,8 +27,8 @@
         /* Colore per lo stato ATTIVO (verde) */
         .active-status { color: #10b981; } 
         
-        /* NUOVO COLORE: Viola scuro/Magenta per lo stato UPCOMING (Prossima Call) */
-        .upcoming-status { color: #5A3FA3; } /* Tonalità dal gradiente Poodl */
+        /* Nuovo colore per lo stato UPCOMING (Viola/Magenta) */
+        .upcoming-status { color: #5A3FA3; } 
         
         /* Gradiente personalizzato per il bottone in stato UPCOMING */
         .poodl-gradient {
@@ -38,11 +38,34 @@
         .poodl-gradient:hover {
             opacity: 0.9;
         }
-        
+
+        /* Stile per l'icona della lingua */
+        .lang-switch {
+            position: fixed; /* Fissa la posizione */
+            top: 20px;
+            left: 20px;
+            font-size: 32px; /* Dimensione dell'emoji */
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            text-decoration: none;
+            z-index: 10; /* Assicura che sia sopra tutto */
+        }
+        .lang-switch:hover {
+            transform: scale(1.1);
+        }
+
         .loading-icon, .status-icon { margin: 0 auto 15px; }
     </style>
 </head>
 <body>
+
+<!-- Language Switch Icon (Bandiera Inglese) -->
+<!-- 
+    ⚠️ IMPORTANTE: 
+    Questo link reindirizza alla cartella /en/.
+    Devi assicurarti di creare un file a questo percorso: /en/index.html 
+-->
+<a href="/en/index.html" class="lang-switch" title="Switch to English">🇬🇧</a>
 
 <div class="container">
     <!-- Icona di caricamento iniziale/status -->
@@ -204,7 +227,7 @@
                 titleElement.classList.remove('text-gray-800'); // Rimuove il testo grigio di default
                 titleElement.classList.add('upcoming-status'); // Applica il colore viola/magenta
 
-                detailsElement.innerHTML = `La prossima call è in programma per:<br><strong class="font-bold">${formattedTime}</strong><br>(${statusResult.call.description})`;
+                detailsElement.innerHTML = `La **prossima call** è in programma per:<br><strong class="font-bold">${formattedTime}</strong><br>(${statusResult.call.description})`;
                 detailsElement.classList.remove('text-gray-600');
                 detailsElement.classList.add('text-gray-700', 'font-medium');
 
@@ -224,8 +247,8 @@
                 titleElement.textContent = "Nessuna Call in Programma";
                 detailsElement.textContent = "Non ci sono call Zoom in diretta o previste per i prossimi giorni. Consulta la programmazione.";
                 
-                // Aggiorna l'icona con un'informazione (lasciamo il blu standard, come un colore neutro)
-                iconElement.innerHTML = '<svg class="w-8 h-8 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>';
+                // Aggiorna l'icona con un'informazione (usiamo il gradiente Poodl per consistenza)
+                iconElement.innerHTML = '<svg class="w-8 h-8 upcoming-status" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>';
                 
                 // Aggiorna il bottone con il link di fallback informativo e il gradiente
                 buttonElement.textContent = "Vedi la Programmazione Completa";
