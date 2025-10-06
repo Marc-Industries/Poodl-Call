@@ -13,7 +13,7 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: #fff;
+            background-color: #f0f4f8;
             transition: background-color 0.3s ease;
         }
         .container {
@@ -25,7 +25,7 @@
             text-align: center;
         }
         .active-status { color: #10b981; } /* Green for Active */
-        .upcoming-status { color: #fff; } /* Amber for Upcoming */
+        .upcoming-status { color: #f59e0b; } /* Amber for Upcoming */
         .loading-icon, .status-icon { margin: 0 auto 15px; }
     </style>
 </head>
@@ -58,6 +58,8 @@
     // TUTTE LE CALL SONO DI 1 ORA.
     
     const SCHEDULE = [
+        //test
+        { day: 1, startHour: 13, endHour: 14, link: "https://us06web.zoom.us/j/87025443241?pwd=zfbQ85grUb4JDmmZFSxu3wbSFpGuKN.1", description: "test" },
         // Martedì (2)
         { day: 2, startHour: 11, endHour: 12, link: "https://us06web.zoom.us/j/87025443241?pwd=zfbQ85grUb4JDmmZFSxu3wbSFpGuKN.1", description: "Call Martedì Mattina (11:00 - 12:00)" },
         { day: 2, startHour: 14, endHour: 15, link: "https://us06web.zoom.us/j/85044418449?pwd=Fd3EkXkk7sbSLiQjbYZXaXcZqKqvBc.1", description: "Call Martedì Pomeriggio (14:00 - 15:00)" },
