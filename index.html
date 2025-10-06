@@ -158,7 +158,7 @@
         // from a specific Date object adjusted for the UK timezone.
         
         // Re-calculate 'now' based on UK timezone (GMT/BST)
-        const ukTimeNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+        const ukTimeNow = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
         
         const currentDay = ukTimeNow.getDay(); // 0 (Sun) to 6 (Sat)
         const currentHour = ukTimeNow.getHours();
