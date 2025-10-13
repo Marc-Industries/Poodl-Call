@@ -113,7 +113,7 @@
     ].sort((a, b) => a.day - b.day || a.startHour - b.startHour); 
     
     // Link di default quando non ci sono call attive o in programma.
-    const FALLBACK_URL = "https://poodl.org/"; 
+    const FALLBACK_URL = "https://marc-industries.github.io/poodl-meeting/schedule_ita.html"; 
 
     // --------------------------------------------------------
     // FUNZIONI DI LOGICA
@@ -235,7 +235,7 @@
                 iconElement.innerHTML = '<svg class="w-8 h-8 upcoming-status" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
 
                 // Aggiorna il bottone con il link di fallback informativo e il gradiente
-                buttonElement.textContent = "Visita il Nostro Sito";
+                buttonElement.textContent = "Vedi Programmazione";
                 buttonElement.href = FALLBACK_URL;
                 buttonElement.classList.add('poodl-gradient');
 
