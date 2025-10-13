@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poodl | UK Full Schedule</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Stili Personalizzati e Colori Poodl */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            padding-top: 60px; /* Space for fixed elements */
+        }
+        .schedule-card {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+        }
+        /* Gradiente Poodl per il pulsante */
+        .poodl-gradient {
+            background: linear-gradient(90deg, #1f4287 0%, #a33f52 100%); /* Blue-Violet to Red-Magenta */
+            transition: opacity 0.3s ease, transform 0.1s ease;
+        }
+        .poodl-gradient:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        /* Stile per le singole righe di appuntamento */
+        .schedule-item {
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            align-items: center;
+        }
+        .schedule-item:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            background-color: #f9f9fb;
+        }
+        /* Colore per l'ora (custom Poodl color) */
+        .time-color {
+            color: #5A3FA3;
+        }
+        
+        /* Stile per il language switch icon */
+        .lang-switch {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 32px; 
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            text-decoration: none;
+            z-index: 10;
+        }
+        .lang-switch:hover {
+            transform: scale(1.1);
+        }
+
+        /* Stile per il pulsante di stato Live (fisso in alto a destra) */
+        .live-status-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            white-space: nowrap; /* Prevents text wrap on small screens */
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .live-status-btn {
+                right: 50%;
+                transform: translateX(50%);
+                top: 70px;
+            }
+            body {
+                padding-top: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Language Switch Icon (Italian Flag) -->
+<a href="./full_schedule_ita.html" class="lang-switch" title="Switch to Italian Schedule">🇮🇹</a>
+
+<!-- Live Status Button (Poodl Gradient) -->
+<a href="./en/index.html" class="live-status-btn poodl-gradient text-white font-bold py-2 px-6 rounded-full transition duration-150 ease-in-out shadow-xl transform hover:scale-105">
+    <span class="inline-block w-3 h-3 bg-green-400 rounded-full mr-2 animate-pulse"></span>
+    Check Live Status
+</a>
+
+
+<div class="schedule-card">
+    
+    <h1 class="text-3xl font-extrabold text-gray-900 mb-2">Weekly Zoom Meetings in English 🇬🇧</h1>
+    <p class="text-lg text-gray-500 mb-4">🌍 Open to Members & their Guests</p>
+
+    <!-- Introductory Content -->
+    <div class="mb-8 p-4 bg-blue-50 border-l-4 border-[#1f4287] rounded-lg">
+        <p class="text-gray-700 leading-relaxed text-sm">
+            Community Members and their guests are warmly invited to join our open Zoom sessions — an exciting chance to learn more about this incredible opportunity that’s inspiring people around the world! ✨
+            <br><br>
+            💫 Come discover what’s possible — connect with like-minded people, get inspired, and explore how you can benefit from this unique opportunity.
+        </p>
+    </div>
+
+    <!-- Contenitore della Programmazione Dinamica -->
+    <div id="schedule-container" class="space-y-6">
+        <!-- Il programma verrà iniettato qui dallo script -->
+    </div>
+    
+    <!-- Footer CTA -->
+    <div class="mt-8 pt-4 border-t text-center">
+         <p class="text-gray-500 italic text-sm">Choose the session that best fits your schedule — we can’t wait to welcome you and your guests! 💖</p>
+    </div>
+</div>
+
+<script>
+    // --------------------------------------------------------
+    // CONFIGURATION: SCHEDULE AND LINKS (UK TIME ZONE)
+    // --------------------------------------------------------
+    
+    // Day: 0=Sun, 1=Mon, ..., 6=Sat
+    const SCHEDULE = [
+        // Tuesday (2): 7:00 PM
+        { day: 2, startHour: 19, startMinute: 0, link: "https://us06web.zoom.us/j/81102996182?pwd=J9kR9aWTwg6SaW31WQp3ojdEOvEY8c.1", description: "Tuesday Evening Call" },
+        
+        // Wednesday (3): 6:00 PM
+        { day: 3, startHour: 18, startMinute: 0, link: "https://us06web.zoom.us/j/85392273248?pwd=aQKUkLqTHgOAswpbM6LxBauNeXdq2R.1", description: "Wednesday Evening Call" },
+        
+        // Thursday (4): 8:30 AM & 5:00 PM
+        { day: 4, startHour: 8, startMinute: 30, link: "https://us06web.zoom.us/j/87317484917?pwd=4RBeb5ylYC3O9aejZhgEvo3NLGZaT4.1", description: "Thursday Morning Call" },
+        { day: 4, startHour: 17, startMinute: 0, link: "https://us06web.zoom.us/j/83683918589?pwd=hEVTG7j7OsyoIQAHRMXk7ytcDLkdsR.1", description: "Thursday Afternoon Call" },
+        
+        // Friday (5): 8:30 AM & 5:00 PM
+        { day: 5, startHour: 8, startMinute: 30, link: "https://us06web.zoom.us/j/88030162456?pwd=y9A5cOaDKbNJdpqUxtrMZOmJaVgZf7.1", description: "Friday Morning Call" },
+        { day: 5, startHour: 17, startMinute: 0, link: "https://us06web.zoom.us/j/89941028091?pwd=lW7MDxBSbQGIGh6VKlOCKJrRKFeiTL.1", description: "Friday Afternoon Call" },
+    ];
+
+    // Helper function to convert 24-hour time to 12-hour AM/PM format
+    function formatTime(hour, minute) {
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = (hour % 12) || 12; 
+        const displayMinute = minute < 10 ? '0' + minute : minute;
+        return `${displayHour}:${displayMinute} ${ampm}`;
+    }
+
+    // Map day numbers to English names
+    const DAY_NAMES = [
+        'Sunday', 'Monday', 'Tuesday', 'Wednesday', 
+        'Thursday', 'Friday', 'Saturday'
+    ];
+
+    // Function to group calls by day and render the UI
+    function renderSchedule() {
+        const container = document.getElementById('schedule-container');
+        let htmlContent = '';
+
+        // 1. Group calls by day
+        const callsByDay = SCHEDULE.reduce((acc, call) => {
+            const dayName = DAY_NAMES[call.day];
+            if (!acc[dayName]) {
+                acc[dayName] = [];
+            }
+            acc[dayName].push(call);
+            return acc;
+        }, {});
+
+        // 2. Iterate through all days (starting from Monday to Friday)
+        // We use an array of day indices to ensure correct order
+        const orderedDays = [1, 2, 3, 4, 5]; 
+
+        orderedDays.forEach(dayIndex => {
+            const dayName = DAY_NAMES[dayIndex];
+            const calls = callsByDay[dayName];
+
+            if (calls && calls.length > 0) {
+                // Day Header
+                htmlContent += `
+                    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-lg">
+                        <h2 class="text-2xl font-bold time-color mb-4 border-b pb-2">${dayName}</h2>
+                        <div class="space-y-3">
+                `;
+                
+                // Call Items
+                calls.forEach(call => {
+                    const formattedTime = formatTime(call.startHour, call.startMinute);
+
+                    htmlContent += `
+                        <a href="${call.link}" target="_blank" class="schedule-item bg-gray-50 hover:bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <!-- Icon -->
+                            <svg class="w-6 h-6 text-gray-400 mr-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            
+                            <!-- Content -->
+                            <div class="text-left flex-grow">
+                                <p class="text-lg font-semibold text-gray-800">${call.description}</p>
+                                <p class="text-md time-color font-bold">${formattedTime} <span class="text-gray-500 font-normal text-sm">(Join via Zoom)</span></p>
+                            </div>
+                            
+                            <!-- Arrow -->
+                            <svg class="w-5 h-5 text-gray-400 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </a>
+                    `;
+                });
+
+                htmlContent += `
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        container.innerHTML = htmlContent;
+    }
+
+    // Start the rendering
+    document.addEventListener('DOMContentLoaded', renderSchedule);
+</script>
+
+</body>
+</html>
