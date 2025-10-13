@@ -4,6 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Poodl Meeting UK</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght(400;600;700)&display=swap" rel="stylesheet">
     <style>
         /* Custom Styles and Tailwind animations */
         body {
@@ -51,7 +52,7 @@
             z-index: 10; /* Ensure it's on top */
         }
         .lang-switch:hover {
-            /* Rimuove l'effetto hover di trasformazione dato che non è più un link, ma lo mantengo per coerenza */
+            /* Mantengo l'effetto per un feedback visivo */
             transform: scale(1.1); 
         }
 
@@ -114,108 +115,155 @@
     const FALLBACK_URL = "https://marc-industries.github.io/poodl-meeting/schedule_uk.html"; 
 
     // --------------------------------------------------------
-    // HELPER FUNCTIONS FOR FLAG AND TIME ZONE
+    // HELPER FUNCTIONS FOR FLAG AND TIME ZONE (COPIED FROM schedule_uk.html)
     // --------------------------------------------------------
 
-    // Mappatura fuso orario/acronimo su un codice paese rappresentativo
     const TZ_ACRONYM_MAP = {
-        'CEST': 'IT', // Central European Summer Time (Italia, Germania, Francia, ecc.)
-        'CET': 'IT',  // Central European Time
-        'PDT': 'US',  // Pacific Daylight Time (USA Ovest)
-        'PST': 'US',  // Pacific Standard Time
-        'EDT': 'US',  // Eastern Daylight Time (USA Est, Canada Est)
-        'EST': 'US',  // Eastern Standard Time
-        'BST': 'GB',  // British Summer Time (UK)
-        'GMT': 'GB',  // Greenwich Mean Time (UK/Default)
-        'IST': 'IN',  // India Standard Time (o 'IE' per l'Irlanda, ma India è più probabile per un pubblico ampio)
-        'AEST': 'AU', // Australian Eastern Standard Time
-        'AEDT': 'AU', // Australian Eastern Daylight Time
-        'JST': 'JP',  // Japan Standard Time
-        'KST': 'KR',  // Korea Standard Time
-        // Aggiungi qui altri fusi orari comuni se necessario
+        'CEST': 'IT', 'CET': 'IT', 
+        'PDT': 'US', 'PST': 'US',  
+        'EDT': 'US', 'EST': 'US',  
+        'BST': 'GB', 'GMT': 'GB', 
+        'IST': 'IN', 'AEST': 'AU', 
+        'AEDT': 'AU', 'JST': 'JP',  
+        'KST': 'KR', 
     };
 
+    const IANA_TZ_TO_COUNTRY_MAP = {
+        'Europe/Rome': 'IT', 'Europe/Paris': 'FR', 'Europe/Berlin': 'DE', 'Europe/Madrid': 'ES',
+        'Europe/London': 'GB', 'Europe/Dublin': 'IE',
+        'America/New_York': 'US', 'America/Los_Angeles': 'US', 'America/Toronto': 'CA',
+        'Asia/Kolkata': 'IN', 'Australia/Sydney': 'AU', 'Asia/Tokyo': 'JP', 'Asia/Seoul': 'KR',
+    };
 
-    /**
-     * Tenta di determinare il codice Paese (es. 'IT', 'US')
-     * 1. Dal locale del browser (più preciso).
-     * 2. Dal fuso orario locale (fallback).
-     * @returns {string} Codice Paese a due lettere o 'GB' come fallback.
-     */
     function getCountryCodeFromLocaleOrTZ() {
-        let countryCode = 'GB'; // Fallback predefinito
+        let countryCode = 'GB';
 
         try {
-            // Tentativo 1: Ottiene il codice Paese dal locale risolto (es. 'it-IT' -> 'IT')
-            const locale = Intl.DateTimeFormat().resolvedOptions().locale; 
+            const resolvedOptions = Intl.DateTimeFormat().resolvedOptions();
+            const locale = resolvedOptions.locale; 
             const parts = locale.split('-');
             if (parts.length > 1 && parts[1].length === 2) {
-                return parts[1].toUpperCase(); // Successo: Ritorna il codice Paese specifico
+                return parts[1].toUpperCase(); 
             }
-        } catch (e) {
-            console.warn("Could not determine locale country code. Falling back to TZ acronym map.");
-        }
 
+            const timeZoneId = resolvedOptions.timeZone;
+            if (IANA_TZ_TO_COUNTRY_MAP[timeZoneId]) {
+                return IANA_TZ_TO_COUNTRY_MAP[timeZoneId];
+            }
+
+        } catch (e) {
+            console.warn("Could not determine country code from locale or IANA Time Zone. Falling back to TZ acronym map.");
+        }
+        
         try {
-            // Tentativo 2: Determina l'acronimo del fuso orario locale
             const now = new Date();
             const localOptions = { timeZoneName: 'short' };
-            const formattedLocalTime = now.toLocaleTimeString(navigator.language, localOptions);
+            const formattedLocalTime = now.toLocaleTimeString('en-US', localOptions); 
             
-            // Estrae l'acronimo del fuso orario (es. CEST)
             const tzMatch = formattedLocalTime.match(/\b([A-Z]{3,5})\b/);
             const localTimeZoneAcronym = tzMatch ? tzMatch[1] : null;
 
             if (localTimeZoneAcronym && TZ_ACRONYM_MAP[localTimeZoneAcronym]) {
-                return TZ_ACRONYM_MAP[localTimeZoneAcronym]; // Successo: Ritorna il codice Paese mappato
+                return TZ_ACRONYM_MAP[localTimeZoneAcronym];
             }
         } catch (e) {
             console.error("Could not determine country code from Time Zone Acronym:", e);
         }
 
-        // Fallback al Regno Unito (GB) se nessuno dei tentativi ha successo
         return countryCode; 
     }
 
-    /**
-     * Converte un codice Paese ISO 3166-1 alpha-2 in un'emoji bandiera.
-     * @param {string} countryCode - Codice Paese a due lettere (es. 'IT').
-     * @returns {string} Emoji della bandiera.
-     */
     function getEmojiFlag(countryCode) {
-        if (!countryCode) return '🌐'; // Globo come fallback
+        if (!countryCode) return '🌐';
         const code = countryCode.toUpperCase();
-        // Le emoji bandiera si basano su due caratteri regionali indicatori (RIFF)
-        // che corrispondono a lettere maiuscole con un offset Unicode di 127397.
         return String.fromCodePoint(
             ...code.split('').map(char => 127397 + char.charCodeAt())
         );
     }
+    
+    /**
+     * CORREZIONE ESSENZIALE
+     * Funzione ausiliaria per ottenere l'offset UTC in minuti (affidabile anche con DST).
+     * @param {Date} date - Data di riferimento (per DST).
+     * @param {string} timeZone - IANA Time Zone ID (es. 'Europe/London').
+     * @returns {number} Offset del fuso orario rispetto a UTC in minuti (es. +60 per BST).
+     */
+    function getUTCOffsetMinutes(date, timeZone) {
+        // Usa un punto di riferimento fisso (12:00 UTC) per determinare l'offset 
+        const utcDate = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0); 
+        
+        // Converte l'istante 12:00 UTC nell'ora corrispondente nel fuso orario UK.
+        const hourInUK = new Date(utcDate).toLocaleString('en-US', {
+            timeZone: timeZone, 
+            hour: 'numeric',
+            hour12: false
+        });
+        
+        // L'offset è: (Ora in UK - 12) * 60 minuti.
+        const offsetHours = parseInt(hourInUK) - 12;
+        
+        return offsetHours * 60; // Restituisce +60 per BST (UTC+1), 0 per GMT (UTC+0).
+    }
+
+
+    /**
+     * Converte l'orario UK (Europe/London) in un oggetto Date UTC.
+     * @param {Date} ukTimeNow - Oggetto Date che rappresenta il giorno attuale (ottenuto dal fuso orario UK).
+     * @param {number} dayIndex - Giorno della settimana UK (0-6).
+     * @param {number} hour - Ora UK (0-23).
+     * @param {number} minute - Minuto UK (0-59).
+     * @param {number} daysToAdd - Numero di giorni da aggiungere.
+     * @returns {Date} Oggetto Date in UTC per l'orario UK schedulato.
+     */
+    function getScheduledTimeUTC(ukTimeNow, dayIndex, hour, minute, daysToAdd) {
+        const UK_TZ = 'Europe/London';
+        
+        // 1. Determina la data di calendario per la prossima riunione
+        const targetDate = new Date(ukTimeNow);
+        targetDate.setDate(ukTimeNow.getDate() + daysToAdd);
+        
+        // 2. Calcola l'offset UK per la data di riferimento.
+        const ukOffsetMinutes = getUTCOffsetMinutes(targetDate, UK_TZ);
+
+        // 3. Calcola il timestamp UTC per il momento desiderato in UK_TZ.
+        
+        // Timestamp di mezzanotte UTC del giorno target
+        const targetDateUTC = Date.UTC(
+            targetDate.getFullYear(), 
+            targetDate.getMonth(), 
+            targetDate.getDate(), 
+            0, 0, 0 
+        );
+
+        // Millisecondi totali per il momento desiderato (UK Time -> UTC)
+        // [Ora UK] - [Offset UK da UTC] = [Ora UTC]
+        const scheduledTimestampUTC = targetDateUTC + 
+                                      (hour * 60 * 60 * 1000) + 
+                                      (minute * 60 * 1000) - 
+                                      (ukOffsetMinutes * 60 * 1000);
+        
+        return new Date(scheduledTimestampUTC);
+    }
+
     
     // --------------------------------------------------------
     // LOGIC FUNCTIONS
     // --------------------------------------------------------
 
     /**
-     * Gets the current call status (Active, Upcoming, or None).
-     * This function now uses the UK Time Zone (GMT/BST) for comparison.
+     * Gets the current call status (Active, Upcoming, or None) based on UK time.
      */
     function getCallStatus() {
-        // Create a new Date object representing the current moment in time.
         const now = new Date();
+        const UK_TZ = 'Europe/London';
         
-        // --- IMPORTANT: Calculate current time based on UK Time Zone (GMT/BST) ---
-        
-        // Re-calculate 'now' based on UK timezone (GMT/BST) for accurate UK day/time components
-        const ukTimeNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+        // Data/Ora attuale del Regno Unito per i calcoli di confronto
+        const ukTimeNow = new Date(now.toLocaleString('en-US', { timeZone: UK_TZ }));
         
         const currentDay = ukTimeNow.getDay(); // 0 (Sun) to 6 (Sat)
         const currentHour = ukTimeNow.getHours();
         const currentMinute = ukTimeNow.getMinutes();
-        
         const nowMinutes = currentHour * 60 + currentMinute;
-        // --- END UK TIME CALCULATION ---
-
         
         // 1. Check for ACTIVE CALL TODAY (Immediate Redirect)
         for (const call of SCHEDULE) {
@@ -238,47 +286,15 @@
 
             for (const call of callsForDay) {
                 
-                // --- UTC CALCULATION BASED ON UK SCHEDULED TIME (UK/BST) ---
-                
-                // 1. Determine the target date based on the UK calendar
-                const targetDayUK = new Date(ukTimeNow);
-                if (i > 0) {
-                    targetDayUK.setDate(ukTimeNow.getDate() + i);
-                }
-                
-                // 2. Create the exact moment of the scheduled call in UTC.
-                // We assume the scheduled time is UK Time (BST/GMT).
-                // Subtraction logic needs to be robust for BST/GMT conversion. 
-                // A simpler way is to construct the UK time components directly and let Date handle the rest.
-                
-                const nextCallTimeDisplay = new Date(
-                    targetDayUK.getFullYear(), 
-                    targetDayUK.getMonth(), 
-                    targetDayUK.getDate(), 
-                    call.startHour, 
-                    call.startMinute
-                );
-                
-                // Now adjust this Date object to be interpreted as if it were in the 'Europe/London' timezone, 
-                // but displayed in the user's local timezone.
-                
-                // Note: The previous UTC construction logic was overly complex due to BST/GMT daylight saving rules. 
-                // We'll rely on toLocaleString/toLocaleTimeString later to accurately convert the UK time for display.
+                // Calcola l'orario schedulato in UTC per il confronto accurato
+                const scheduledTimeUTC = getScheduledTimeUTC(ukTimeNow, call.day, call.startHour, call.startMinute, i);
 
-                // For accurate comparison, we need the scheduled time's timestamp adjusted to the UK timezone rules.
-                const scheduledUKTimestamp = new Date(targetDayUK.getFullYear(), targetDayUK.getMonth(), targetDayUK.getDate(), call.startHour, call.startMinute, 0)
-                                                    .toLocaleString('en-US', { timeZone: 'Europe/London' });
-                                                    
-                const scheduledUKTime = new Date(scheduledUKTimestamp);
-
-
-                // 3. Compare the full Date objects (current UK time vs next call UK time)
-                if (ukTimeNow.getTime() < scheduledUKTime.getTime()) {
+                // Confronta l'istante attuale UTC con l'istante schedulato UTC
+                if (now.getTime() < scheduledTimeUTC.getTime()) {
                     
-                    // We must pass the original UK time object to allow accurate conversion to local time in updateUI
-                    return { status: 'UPCOMING', call: call, nextCallTime: scheduledUKTime };
+                    // nextCallTime deve essere l'oggetto Date UTC corretto per la conversione in updateUI
+                    return { status: 'UPCOMING', call: call, nextCallTime: scheduledTimeUTC };
                 } 
-                // --- END UK TIME CALCULATION ---
             }
         }
 
@@ -297,7 +313,7 @@
         const flagContainer = document.getElementById('dynamic-flag-container');
         
         // 1. IMPOSTA LA BANDIERA LOCALE DELL'UTENTE
-        const userCountryCode = getCountryCodeFromLocaleOrTZ(); // Nuova funzione usata qui
+        const userCountryCode = getCountryCodeFromLocaleOrTZ(); 
         const userFlag = getEmojiFlag(userCountryCode);
         flagContainer.textContent = userFlag;
         
@@ -333,31 +349,29 @@
                 // CASE 2: UPCOMING CALL (Custom Color #5A3FA3)
                 const nextTime = statusResult.nextCallTime;
                 
-                // --- LOCAL Time formatting (used for the main display) ---
+                // --- LOCAL Time formatting ---
+                // Qui usiamo l'oggetto Date UTC corretto per formattarlo nel fuso orario locale dell'utente
                 const localOptions = {
                     weekday: 'long', 
                     day: 'numeric', 
                     month: 'long', 
                     hour: '2-digit', 
                     minute: '2-digit', 
-                    hour12: true,
-                    timeZoneName: 'short' // Request the time zone acronym (e.g., CEST, PDT)
+                    hour12: false, // Usiamo 24h per chiarezza, se 12h causa problemi di RangeError
+                    timeZoneName: 'short' 
                 };
                 
-                // Formatta l'orario del prossimo evento nel fuso orario locale dell'utente
                 const formattedLocalTime = nextTime.toLocaleTimeString(navigator.language, localOptions);
 
                 // Estrae l'acronimo del fuso orario (es. CEST)
-                // Usiamo un RegEx per un'estrazione più pulita e affidabile dell'acronimo.
                 const tzMatch = formattedLocalTime.match(/\b([A-Z]{3,5})\b/);
                 const localTimeZoneAcronym = tzMatch ? tzMatch[1] : 'Local Time'; 
                 
-                // Rimuove l'acronimo dal tempo formattato per il display principale
-                const mainDisplayTime = formattedLocalTime.replace(localTimeZoneAcronym, '').trim().replace(',', '');
-
+                // Rimuove l'acronimo e la virgola dal tempo formattato
+                let mainDisplayTime = formattedLocalTime.replace(localTimeZoneAcronym, '').trim().replace(',', '');
 
                 titleElement.textContent = "We are not live right now.";
-                titleElement.classList.remove('text-gray-800'); 
+                titleElement.classList.remove('text-gray-800', 'active-status'); 
                 titleElement.classList.add('upcoming-status'); 
 
                 detailsElement.innerHTML = `The next call is scheduled for:<br><strong class="font-bold">${mainDisplayTime} (${localTimeZoneAcronym})</strong><br>(${statusResult.call.description})`;
@@ -373,11 +387,14 @@
                 buttonElement.classList.add('poodl-gradient');
 
                 break;
-            
+
             case 'NONE':
             default:
                 // CASE 3: NO CALL SCHEDULED (Absolute Fallback)
                 titleElement.textContent = "No Calls Scheduled";
+                titleElement.classList.remove('active-status'); 
+                titleElement.classList.add('upcoming-status'); 
+
                 detailsElement.textContent = "There are no live or upcoming Zoom calls scheduled for the next few days. Please check the schedule.";
                 
                 // Update icon with custom color info icon
@@ -396,8 +413,10 @@
     // --------------------------------------------------------
 
     // Inizializza e aggiorna lo stato e la bandiera
-    const status = getCallStatus();
-    updateUI(status);
+    document.addEventListener('DOMContentLoaded', () => {
+        const status = getCallStatus();
+        updateUI(status);
+    });
 </script>
 
 </body>
