@@ -158,7 +158,7 @@
 
             for (const call of callsForDay) {
                 
-                // --- FIX FOR TIMEZONE SHIFT ON UPCOMING CALLS ---
+                // --- UTC CALCULATION BASED ON UK SCHEDULED TIME (UK/BST) ---
                 
                 // 1. Determine the target date based on the UK calendar
                 const targetDayUK = new Date(ukTimeNow);
@@ -167,13 +167,14 @@
                 }
                 
                 // 2. Create the exact moment of the scheduled call in UTC.
-                // Since the UK is generally GMT+1 (BST) during the typical meeting schedule, 
-                // the UTC hour is the scheduled hour minus 1 (e.g., 19:00 BST is 18:00 UTC).
+                // We assume the scheduled time is UK Time (BST/GMT).
                 // Subtracting 1 hour from the scheduled UK time when using Date.UTC compensates 
                 // for the +1 hour BST offset, ensuring the internal timestamp is correct.
                 
                 const utcHour = call.startHour - 1; 
 
+                // nextCallTimeDisplay is a Date object representing the moment of the next call, 
+                // internally stored in UTC, but calculated to match the UK time setting.
                 const nextCallTimeDisplay = new Date(Date.UTC(
                     targetDayUK.getFullYear(), 
                     targetDayUK.getMonth(), 
@@ -187,7 +188,7 @@
                     
                     return { status: 'UPCOMING', call: call, nextCallTime: nextCallTimeDisplay };
                 } 
-                // --- END FIX FOR TIMEZONE SHIFT ---
+                // --- END UTC CALCULATION ---
             }
         }
 
@@ -236,8 +237,8 @@
                 // CASE 2: UPCOMING CALL (Custom Color #5A3FA3)
                 const nextTime = statusResult.nextCallTime;
                 
-                // Format the time and day for UK Time Zone (using en-GB locale for clearer date/time format)
-                const dateOptions = { 
+                // --- UK Time formatting (used for the description/parentheses) ---
+                const ukDateOptions = { 
                     weekday: 'long', 
                     day: 'numeric', 
                     month: 'long', 
@@ -246,14 +247,36 @@
                     timeZone: 'Europe/London',
                     hour12: true // Ensure AM/PM format
                 };
-                // We use 'en-GB' as the locale for formatting the date/time string clearly
-                const formattedTime = nextTime.toLocaleTimeString('en-GB', dateOptions);
+                const formattedUKTime = nextTime.toLocaleTimeString('en-GB', ukDateOptions);
+
+                // --- LOCAL Time formatting (used for the main display) ---
+                const localOptions = {
+                    weekday: 'long', 
+                    day: 'numeric', 
+                    month: 'long', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    hour12: true,
+                    timeZoneName: 'short' // Request the time zone acronym (e.g., CEST, PDT)
+                };
+                
+                // Use the user's local locale (browser default) to format the time
+                const formattedLocalTime = nextTime.toLocaleTimeString(navigator.language, localOptions);
+
+                // Attempt to extract the time zone short name from the formatted string
+                // The time zone name is usually the last word. This is a heuristic, but reliable with 'timeZoneName: "short"'.
+                const parts = formattedLocalTime.split(' ');
+                const localTimeZoneAcronym = parts.pop().replace(/[^a-zA-Z]/g, ''); // Get the last part and clean it
+                
+                // Remove the time zone name from the main display time
+                const mainDisplayTime = formattedLocalTime.replace(localTimeZoneAcronym, '').trim();
+
 
                 titleElement.textContent = "We are not live right now.";
                 titleElement.classList.remove('text-gray-800'); 
                 titleElement.classList.add('upcoming-status'); 
 
-                detailsElement.innerHTML = `The next call is scheduled for:<br><strong class="font-bold">${formattedTime} (UK Time)</strong><br>(${statusResult.call.description})`;
+                detailsElement.innerHTML = `The next call is scheduled for:<br><strong class="font-bold">${mainDisplayTime} (${localTimeZoneAcronym})</strong><br>(${statusResult.call.description})`;
                 detailsElement.classList.remove('text-gray-600');
                 detailsElement.classList.add('text-gray-700', 'font-medium');
 
