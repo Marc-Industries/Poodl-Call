@@ -125,46 +125,15 @@
         const now = new Date();
         
         // --- IMPORTANT: Calculate current time based on UK Time Zone (GMT/BST) ---
-        // Since the user schedule is based on UK Time, we need to adjust the current
-        // local time to reflect the time in London (GMT/BST).
         
-        // 1. Get the current UK time offset in minutes (e.g., 60 for CEST during summer).
-        // This is necessary because Date methods use the browser's local timezone.
-        const timezoneOffset = now.getTimezoneOffset(); // Local offset in minutes
-        
-        // To get the UK hour (which might be GMT or BST depending on the date), 
-        // we can calculate the UTC time and then add or subtract the UK offset from UTC.
-        // A simpler (but slightly less robust) method is to convert the local time 
-        // to a UK Time string and parse the hour/day.
-        
-        // For simplicity and compatibility, we will use the Date methods 
-        // and rely on a fixed offset if the calls are always relative to UK time 
-        // regardless of the user's location.
-        // Since we cannot reliably determine if UK is on BST (+1) or GMT (0) from here,
-        // we will use the toLocaleString method with 'en-GB' and 'Europe/London' 
-        // which handles daylight savings automatically.
-
-        // Get the current time components in the UK timezone
-        const ukTimeOptions = { 
-            timeZone: 'Europe/London', 
-            weekday: 'short', // 0-6
-            hour: 'numeric',   // 0-23
-            minute: 'numeric', // 0-59
-        };
-        
-        const ukTimeString = now.toLocaleString('en-GB', ukTimeOptions);
-        
-        // Since parsing locale strings can be tricky, let's just get the raw components 
-        // from a specific Date object adjusted for the UK timezone.
-        
-        // Re-calculate 'now' based on UK timezone (GMT/BST)
+        // Re-calculate 'now' based on UK timezone (GMT/BST) for accurate UK day/time components
         const ukTimeNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
         
         const currentDay = ukTimeNow.getDay(); // 0 (Sun) to 6 (Sat)
         const currentHour = ukTimeNow.getHours();
         const currentMinute = ukTimeNow.getMinutes();
         
-        const nowMinutes = currentHour * 120 + currentMinute;
+        const nowMinutes = currentHour * 60 + currentMinute;
         // --- END UK TIME CALCULATION ---
 
         
@@ -188,37 +157,37 @@
             const callsForDay = SCHEDULE.filter(call => call.day === checkDay);
 
             for (const call of callsForDay) {
-                // Get the scheduled start time of the next call in the user's local timezone
-                // We start from the UK time 'now' and adjust the date/time
-                const nextCallTimeUK = new Date(ukTimeNow);
                 
-                // Adjust the date if the call is on a future day (i > 0)
+                // --- FIX FOR TIMEZONE SHIFT ON UPCOMING CALLS ---
+                
+                // 1. Determine the target date based on the UK calendar
+                const targetDayUK = new Date(ukTimeNow);
                 if (i > 0) {
-                     nextCallTimeUK.setDate(ukTimeNow.getDate() + i);
+                    targetDayUK.setDate(ukTimeNow.getDate() + i);
                 }
                 
-                nextCallTimeUK.setHours(call.startHour, call.startMinute, 0, 0); // Set start time
+                // 2. Create the exact moment of the scheduled call in UTC.
+                // Since the UK is generally GMT+1 (BST) during the typical meeting schedule, 
+                // the UTC hour is the scheduled hour minus 1 (e.g., 19:00 BST is 18:00 UTC).
+                // Subtracting 1 hour from the scheduled UK time when using Date.UTC compensates 
+                // for the +1 hour BST offset, ensuring the internal timestamp is correct.
+                
+                const utcHour = call.startHour - 1; 
 
-                // Compare the full Date objects (current UK time vs next call UK time)
-                if (ukTimeNow.getTime() < nextCallTimeUK.getTime()) {
-                    // To display the time correctly to the user, we should use the user's local date object:
-                    const nextCallTimeLocal = new Date(now);
+                const nextCallTimeDisplay = new Date(Date.UTC(
+                    targetDayUK.getFullYear(), 
+                    targetDayUK.getMonth(), 
+                    targetDayUK.getDate(), 
+                    utcHour, 
+                    call.startMinute
+                )); 
+
+                // 3. Compare the full Date objects (current UK time vs next call UK time)
+                if (ukTimeNow.getTime() < nextCallTimeDisplay.getTime()) {
                     
-                    // We need to determine the day difference in the local calendar to set the correct date
-                    const daysToAdd = nextCallTimeUK.getDate() - ukTimeNow.getDate();
-                    nextCallTimeLocal.setDate(now.getDate() + daysToAdd);
-
-                    // Set the hours/minutes based on the UK time schedule, 
-                    // relying on toLocaleTimeString later to format correctly.
-                    // NOTE: This approach is complex due to cross-timezone scheduling. 
-                    // Given the constraint of 1 file and no external libraries, 
-                    // we will display the time based on the local system time but label it as UK Time.
-                    
-                    // For display, we use the UK time object created above,
-                    // but we will format it using the explicit UK timezone setting in updateUI.
-
-                    return { status: 'UPCOMING', call: call, nextCallTime: nextCallTimeUK };
+                    return { status: 'UPCOMING', call: call, nextCallTime: nextCallTimeDisplay };
                 } 
+                // --- END FIX FOR TIMEZONE SHIFT ---
             }
         }
 
@@ -267,9 +236,18 @@
                 // CASE 2: UPCOMING CALL (Custom Color #5A3FA3)
                 const nextTime = statusResult.nextCallTime;
                 
-                // Format the time and day for UK Time Zone
-                const dateOptions = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' };
-                const formattedTime = nextTime.toLocaleTimeString('en-US', dateOptions);
+                // Format the time and day for UK Time Zone (using en-GB locale for clearer date/time format)
+                const dateOptions = { 
+                    weekday: 'long', 
+                    day: 'numeric', 
+                    month: 'long', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    timeZone: 'Europe/London',
+                    hour12: true // Ensure AM/PM format
+                };
+                // We use 'en-GB' as the locale for formatting the date/time string clearly
+                const formattedTime = nextTime.toLocaleTimeString('en-GB', dateOptions);
 
                 titleElement.textContent = "We are not live right now.";
                 titleElement.classList.remove('text-gray-800'); 
