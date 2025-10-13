@@ -117,24 +117,64 @@
     // HELPER FUNCTIONS FOR FLAG AND TIME ZONE
     // --------------------------------------------------------
 
+    // Mappatura fuso orario/acronimo su un codice paese rappresentativo
+    const TZ_ACRONYM_MAP = {
+        'CEST': 'IT', // Central European Summer Time (Italia, Germania, Francia, ecc.)
+        'CET': 'IT',  // Central European Time
+        'PDT': 'US',  // Pacific Daylight Time (USA Ovest)
+        'PST': 'US',  // Pacific Standard Time
+        'EDT': 'US',  // Eastern Daylight Time (USA Est, Canada Est)
+        'EST': 'US',  // Eastern Standard Time
+        'BST': 'GB',  // British Summer Time (UK)
+        'GMT': 'GB',  // Greenwich Mean Time (UK/Default)
+        'IST': 'IN',  // India Standard Time (o 'IE' per l'Irlanda, ma India è più probabile per un pubblico ampio)
+        'AEST': 'AU', // Australian Eastern Standard Time
+        'AEDT': 'AU', // Australian Eastern Daylight Time
+        'JST': 'JP',  // Japan Standard Time
+        'KST': 'KR',  // Korea Standard Time
+        // Aggiungi qui altri fusi orari comuni se necessario
+    };
+
+
     /**
-     * Estrae il codice Paese (es. 'IT', 'US') dal locale del browser.
+     * Tenta di determinare il codice Paese (es. 'IT', 'US')
+     * 1. Dal locale del browser (più preciso).
+     * 2. Dal fuso orario locale (fallback).
      * @returns {string} Codice Paese a due lettere o 'GB' come fallback.
      */
-    function getCountryCodeFromLocale() {
+    function getCountryCodeFromLocaleOrTZ() {
+        let countryCode = 'GB'; // Fallback predefinito
+
         try {
-            // Ottiene il locale risolto dal browser (es. 'it-IT', 'en-US')
+            // Tentativo 1: Ottiene il codice Paese dal locale risolto (es. 'it-IT' -> 'IT')
             const locale = Intl.DateTimeFormat().resolvedOptions().locale; 
             const parts = locale.split('-');
             if (parts.length > 1 && parts[1].length === 2) {
-                // Restituisce la seconda parte in maiuscolo (il codice Paese)
-                return parts[1].toUpperCase();
+                return parts[1].toUpperCase(); // Successo: Ritorna il codice Paese specifico
             }
         } catch (e) {
-            console.error("Could not determine locale country code:", e);
+            console.warn("Could not determine locale country code. Falling back to TZ acronym map.");
         }
-        // Fallback al Regno Unito (GB) se non si riesce a determinare il locale
-        return 'GB'; 
+
+        try {
+            // Tentativo 2: Determina l'acronimo del fuso orario locale
+            const now = new Date();
+            const localOptions = { timeZoneName: 'short' };
+            const formattedLocalTime = now.toLocaleTimeString(navigator.language, localOptions);
+            
+            // Estrae l'acronimo del fuso orario (es. CEST)
+            const tzMatch = formattedLocalTime.match(/\b([A-Z]{3,5})\b/);
+            const localTimeZoneAcronym = tzMatch ? tzMatch[1] : null;
+
+            if (localTimeZoneAcronym && TZ_ACRONYM_MAP[localTimeZoneAcronym]) {
+                return TZ_ACRONYM_MAP[localTimeZoneAcronym]; // Successo: Ritorna il codice Paese mappato
+            }
+        } catch (e) {
+            console.error("Could not determine country code from Time Zone Acronym:", e);
+        }
+
+        // Fallback al Regno Unito (GB) se nessuno dei tentativi ha successo
+        return countryCode; 
     }
 
     /**
@@ -208,27 +248,37 @@
                 
                 // 2. Create the exact moment of the scheduled call in UTC.
                 // We assume the scheduled time is UK Time (BST/GMT).
-                // Subtracting 1 hour from the scheduled UK time when using Date.UTC compensates 
-                // for the +1 hour BST offset, ensuring the internal timestamp is correct.
+                // Subtraction logic needs to be robust for BST/GMT conversion. 
+                // A simpler way is to construct the UK time components directly and let Date handle the rest.
                 
-                const utcHour = call.startHour - 1; 
-
-                // nextCallTimeDisplay is a Date object representing the moment of the next call, 
-                // internally stored in UTC, but calculated to match the UK time setting.
-                const nextCallTimeDisplay = new Date(Date.UTC(
+                const nextCallTimeDisplay = new Date(
                     targetDayUK.getFullYear(), 
                     targetDayUK.getMonth(), 
                     targetDayUK.getDate(), 
-                    utcHour, 
+                    call.startHour, 
                     call.startMinute
-                )); 
+                );
+                
+                // Now adjust this Date object to be interpreted as if it were in the 'Europe/London' timezone, 
+                // but displayed in the user's local timezone.
+                
+                // Note: The previous UTC construction logic was overly complex due to BST/GMT daylight saving rules. 
+                // We'll rely on toLocaleString/toLocaleTimeString later to accurately convert the UK time for display.
+
+                // For accurate comparison, we need the scheduled time's timestamp adjusted to the UK timezone rules.
+                const scheduledUKTimestamp = new Date(targetDayUK.getFullYear(), targetDayUK.getMonth(), targetDayUK.getDate(), call.startHour, call.startMinute, 0)
+                                                    .toLocaleString('en-US', { timeZone: 'Europe/London' });
+                                                    
+                const scheduledUKTime = new Date(scheduledUKTimestamp);
+
 
                 // 3. Compare the full Date objects (current UK time vs next call UK time)
-                if (ukTimeNow.getTime() < nextCallTimeDisplay.getTime()) {
+                if (ukTimeNow.getTime() < scheduledUKTime.getTime()) {
                     
-                    return { status: 'UPCOMING', call: call, nextCallTime: nextCallTimeDisplay };
+                    // We must pass the original UK time object to allow accurate conversion to local time in updateUI
+                    return { status: 'UPCOMING', call: call, nextCallTime: scheduledUKTime };
                 } 
-                // --- END UTC CALCULATION ---
+                // --- END UK TIME CALCULATION ---
             }
         }
 
@@ -247,7 +297,7 @@
         const flagContainer = document.getElementById('dynamic-flag-container');
         
         // 1. IMPOSTA LA BANDIERA LOCALE DELL'UTENTE
-        const userCountryCode = getCountryCodeFromLocale();
+        const userCountryCode = getCountryCodeFromLocaleOrTZ(); // Nuova funzione usata qui
         const userFlag = getEmojiFlag(userCountryCode);
         flagContainer.textContent = userFlag;
         
@@ -294,7 +344,7 @@
                     timeZoneName: 'short' // Request the time zone acronym (e.g., CEST, PDT)
                 };
                 
-                // Utilizza il locale dell'utente per formattare l'orario
+                // Formatta l'orario del prossimo evento nel fuso orario locale dell'utente
                 const formattedLocalTime = nextTime.toLocaleTimeString(navigator.language, localOptions);
 
                 // Estrae l'acronimo del fuso orario (es. CEST)
