@@ -57,6 +57,16 @@
             text-decoration: none;
             z-index: 10;
         }
+        /* New class for the dynamically set flag - changed cursor to default */
+        .dynamic-flag {
+            cursor: default; 
+            left: 20px;
+            top: 20px;
+            position: fixed;
+            font-size: 32px;
+            z-index: 10;
+        }
+
         .lang-switch:hover {
             transform: scale(1.1);
         }
@@ -85,8 +95,8 @@
 </head>
 <body>
 
-<!-- Language Switch Icon (Italian Flag) -->
-<a href="https://marc-industries.github.io/poodl-meeting/schedule_ita.html" class="lang-switch" title="Switch to Italian Schedule">🇮🇹</a>
+<!-- Dynamic Flag Display based on user's location/TZ (new) -->
+<div id="dynamic-flag-display" class="dynamic-flag" title="La tua bandiera locale (rilevata)">🇬🇧</div>
 
 <!-- Live Status Button (Poodl Gradient) -->
 <a href="https://marc-industries.github.io/poodl-meeting" class="live-status-btn poodl-gradient text-white font-bold py-2 px-6 rounded-full transition duration-150 ease-in-out shadow-xl transform hover:scale-105">
@@ -116,7 +126,7 @@
     
     <!-- Footer CTA -->
     <div class="mt-8 pt-4 border-t text-center">
-         <p class="text-gray-500 italic text-sm">Choose the session that best fits your schedule — we can’t wait to welcome you and your guests! 💖</p>
+        <p class="text-gray-500 italic text-sm">Choose the session that best fits your schedule — we can’t wait to welcome you and your guests! 💖</p>
     </div>
 </div>
 
@@ -142,7 +152,124 @@
         { day: 5, startHour: 17, startMinute: 0, link: "https://us06web.zoom.us/j/89941028091?pwd=lW7MDxBSbQGIGh6VKlOCKJrRKFeiTL.1", description: "Friday Afternoon Call" },
     ];
 
-    // Helper function to convert 24-hour time to 12-hour AM/PM format
+    // --------------------------------------------------------
+    // HELPER FUNCTIONS FOR FLAG AND TIME ZONE (LOGICA PIÙ PRECISA)
+    // --------------------------------------------------------
+
+    // Mappatura fuso orario/acronimo su un codice paese rappresentativo (FALLBACK)
+    const TZ_ACRONYM_MAP = {
+        'CEST': 'IT', 'CET': 'IT', 
+        'PDT': 'US', 'PST': 'US',  
+        'EDT': 'US', 'EST': 'US',  
+        'BST': 'GB', 'GMT': 'GB', 
+        'IST': 'IN', 'AEST': 'AU', 
+        'AEDT': 'AU', 'JST': 'JP',  
+        'KST': 'KR', 
+    };
+
+    // Mappatura IANA Time Zone ID sul codice Paese specifico (PIÙ PRECISA)
+    const IANA_TZ_TO_COUNTRY_MAP = {
+        // Europe/Middle East (CEST/CET)
+        'Europe/Rome': 'IT',
+        'Europe/Paris': 'FR',
+        'Europe/Berlin': 'DE',
+        'Europe/Madrid': 'ES',
+        'Europe/Amsterdam': 'NL',
+        'Europe/Vienna': 'AT',
+        'Europe/Zurich': 'CH',
+        // UK/Ireland (BST/GMT)
+        'Europe/London': 'GB',
+        'Europe/Dublin': 'IE',
+        // Americas (EST/EDT/PST/PDT)
+        'America/New_York': 'US',
+        'America/Los_Angeles': 'US',
+        'America/Toronto': 'CA',
+        'America/Mexico_City': 'MX',
+        // Asia/Pacific
+        'Asia/Kolkata': 'IN',
+        'Australia/Sydney': 'AU',
+        'Asia/Tokyo': 'JP',
+        'Asia/Seoul': 'KR',
+    };
+
+
+    /**
+     * Tenta di determinare il codice Paese (es. 'IT', 'US')
+     * @returns {string} Codice Paese a due lettere o 'GB' come fallback.
+     */
+    function getCountryCodeFromLocaleOrTZ() {
+        let countryCode = 'GB'; // Fallback predefinito
+
+        try {
+            const resolvedOptions = Intl.DateTimeFormat().resolvedOptions();
+
+            // Tentativo 1 (PRIORITARIO): Ottiene il codice Paese dal locale risolto (es. 'it-IT' -> 'IT')
+            const locale = resolvedOptions.locale; 
+            const parts = locale.split('-');
+            if (parts.length > 1 && parts[1].length === 2) {
+                return parts[1].toUpperCase(); 
+            }
+
+            // Tentativo 2 (MIGLIORAMENTO): Mappatura IANA Time Zone ID (es. Europe/Rome -> IT)
+            const timeZoneId = resolvedOptions.timeZone;
+            if (IANA_TZ_TO_COUNTRY_MAP[timeZoneId]) {
+                return IANA_TZ_TO_COUNTRY_MAP[timeZoneId];
+            }
+
+        } catch (e) {
+            console.warn("Could not determine country code from locale or IANA Time Zone. Falling back to TZ acronym map.");
+        }
+        
+        // Tentativo 3 (FALLBACK): Determina l'acronimo del fuso orario locale (meno preciso)
+        try {
+            const now = new Date();
+            const localOptions = { timeZoneName: 'short' };
+            // Usa 'en-US' per assicurare l'acronimo in formato standard
+            const formattedLocalTime = now.toLocaleTimeString('en-US', localOptions); 
+            
+            const tzMatch = formattedLocalTime.match(/\b([A-Z]{3,5})\b/);
+            const localTimeZoneAcronym = tzMatch ? tzMatch[1] : null;
+
+            if (localTimeZoneAcronym && TZ_ACRONYM_MAP[localTimeZoneAcronym]) {
+                return TZ_ACRONYM_MAP[localTimeZoneAcronym];
+            }
+        } catch (e) {
+            console.error("Could not determine country code from Time Zone Acronym:", e);
+        }
+
+        // Fallback finale al Regno Unito (GB)
+        return countryCode; 
+    }
+
+    /**
+     * Converte un codice Paese ISO 3166-1 alpha-2 in un'emoji bandiera.
+     * @param {string} countryCode - Codice Paese a due lettere (es. 'IT').
+     * @returns {string} Emoji della bandiera.
+     */
+    function getEmojiFlag(countryCode) {
+        if (!countryCode) return '🌐'; // Globo come fallback
+        const code = countryCode.toUpperCase();
+        return String.fromCodePoint(
+            ...code.split('').map(char => 127397 + char.charCodeAt())
+        );
+    }
+
+    /**
+     * Set the dynamic flag based on the user's location/TZ.
+     */
+    function setDynamicFlag() {
+        const flagElement = document.getElementById('dynamic-flag-display');
+        const userCountryCode = getCountryCodeFromLocaleOrTZ();
+        const userFlag = getEmojiFlag(userCountryCode);
+        flagElement.textContent = userFlag;
+        flagElement.title = `La tua bandiera: ${userCountryCode}`;
+    }
+    
+    // --------------------------------------------------------
+    // LOGICHE DI RENDERING
+    // --------------------------------------------------------
+
+    // Helper function to convert 24-hour time to 12-hour AM/PM format (solo per l'orario UK di riferimento)
     function formatTime(hour, minute) {
         const ampm = hour >= 12 ? 'PM' : 'AM';
         const displayHour = (hour % 12) || 12; 
@@ -156,10 +283,76 @@
         'Thursday', 'Friday', 'Saturday'
     ];
 
+    /**
+     * Converte l'orario UK in orario locale per la visualizzazione.
+     * @param {number} dayIndex - Giorno della settimana UK (0-6).
+     * @param {number} hour - Ora UK (0-23).
+     * @param {number} minute - Minuto UK (0-59).
+     * @returns {{formattedTime: string, tzAcronym: string}} Ora locale formattata e acronimo del fuso orario.
+     */
+    function convertUKTimeToLocal(dayIndex, hour, minute) {
+        const UK_TZ = 'Europe/London';
+        const now = new Date();
+        
+        // Calcola l'offset di giorni per raggiungere il giorno della settimana specificato
+        const currentDay = new Date(now.toLocaleString('en-US', { timeZone: UK_TZ })).getDay();
+        let daysToAdd = (dayIndex - currentDay + 7) % 7;
+        
+        // Regola l'offset se l'orario è già passato in UK oggi
+        if (daysToAdd === 0) {
+            const ukTimeNow = new Date(now.toLocaleString('en-US', { timeZone: UK_TZ }));
+            const scheduledUKMinutes = hour * 60 + minute;
+            const currentUKMinutes = ukTimeNow.getHours() * 60 + ukTimeNow.getMinutes();
+            if (currentUKMinutes >= scheduledUKMinutes) {
+                 daysToAdd = 7;
+            }
+        }
+        
+        const targetDate = new Date();
+        targetDate.setDate(now.getDate() + daysToAdd);
+
+        // Costruisce la data e ora UK nel fuso orario locale, poi la converte
+        const scheduledTimeUKString = new Date(
+            targetDate.getFullYear(), 
+            targetDate.getMonth(), 
+            targetDate.getDate(), 
+            hour, 
+            minute
+        ).toLocaleString('en-US', { timeZone: UK_TZ });
+        
+        const scheduledTimeUK = new Date(scheduledTimeUKString);
+        
+        
+        // Formatta l'orario nel fuso orario locale dell'utente
+        const localOptions = {
+            weekday: 'short', 
+            day: 'numeric', 
+            month: 'short', 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false, 
+            timeZoneName: 'short'
+        };
+        
+        const formattedLocalTimeFull = scheduledTimeUK.toLocaleString(navigator.language, localOptions);
+
+        // Estrae l'acronimo del fuso orario e l'ora formattata
+        const tzMatch = formattedLocalTimeFull.match(/\b([A-Z]{3,5})\b/);
+        const tzAcronym = tzMatch ? tzMatch[1] : 'Local Time'; 
+        
+        // Pulisce la stringa temporale dall'acronimo
+        let finalTime = formattedLocalTimeFull.replace(tzAcronym, '').trim(); 
+        finalTime = finalTime.replace(/,\s*$/, '').trim(); 
+        finalTime = finalTime.replace(/^,\s*/, '').trim();
+
+        return { formattedTime: finalTime, tzAcronym: tzAcronym };
+    }
+    
     // Function to group calls by day and render the UI
     function renderSchedule() {
         const container = document.getElementById('schedule-container');
         let htmlContent = '';
+        let localTzAcronym = '';
 
         // 1. Group calls by day
         const callsByDay = SCHEDULE.reduce((acc, call) => {
@@ -172,7 +365,6 @@
         }, {});
 
         // 2. Iterate through all days (starting from Monday to Friday)
-        // We use an array of day indices to ensure correct order
         const orderedDays = [1, 2, 3, 4, 5]; 
 
         orderedDays.forEach(dayIndex => {
@@ -189,7 +381,13 @@
                 
                 // Call Items
                 calls.forEach(call => {
-                    const formattedTime = formatTime(call.startHour, call.startMinute);
+                    // Conversione dell'orario UK in orario locale
+                    const localTimeData = convertUKTimeToLocal(call.day, call.startHour, call.startMinute);
+                    const localFormattedTime = localTimeData.formattedTime;
+                    localTzAcronym = localTimeData.tzAcronym; 
+                    
+                    // Ora UK per riferimento (es. 7:00 PM)
+                    const ukTimeFormatted = formatTime(call.startHour, call.startMinute);
 
                     htmlContent += `
                         <a href="${call.link}" target="_blank" class="schedule-item bg-gray-50 hover:bg-white p-4 rounded-xl shadow-sm border border-gray-100">
@@ -198,8 +396,11 @@
                             
                             <!-- Content -->
                             <div class="text-left flex-grow">
-                                <p class="text-lg font-semibold text-gray-800">${call.description}</p>
-                                <p class="text-md time-color font-bold">${formattedTime} <span class="text-gray-500 font-normal text-sm">(Join via Zoom)</span></p>
+                                <p class="text-lg font-semibold text-gray-800">${call.description} (${ukTimeFormatted} UK Time)</p>
+                                <p class="text-md time-color font-bold">
+                                    ${localFormattedTime} 
+                                    <span class="text-gray-500 font-normal text-sm">(${localTzAcronym}, Join via Zoom)</span>
+                                </p>
                             </div>
                             
                             <!-- Arrow -->
@@ -214,12 +415,26 @@
                 `;
             }
         });
+        
+        // Aggiunge l'acronimo del fuso orario locale all'intestazione, se disponibile
+        if (localTzAcronym) {
+            // Rimuove eventuali messaggi precedenti per evitare duplicati
+            const existingTZMessage = document.getElementById('tz-message');
+            if (existingTZMessage) existingTZMessage.remove();
+
+            document.querySelector('.schedule-card h1').insertAdjacentHTML('afterend', 
+                `<p id="tz-message" class="text-md text-gray-600 mb-6">All times displayed below are converted to your local time zone: <strong class="time-color">${localTzAcronym}</strong></p>`
+            );
+        }
 
         container.innerHTML = htmlContent;
     }
 
-    // Start the rendering
-    document.addEventListener('DOMContentLoaded', renderSchedule);
+    // Start the rendering and flag setup
+    document.addEventListener('DOMContentLoaded', () => {
+        setDynamicFlag();
+        renderSchedule();
+    });
 </script>
 
 </body>
