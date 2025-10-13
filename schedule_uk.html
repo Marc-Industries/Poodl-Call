@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Poodl | UK Full Schedule</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght(400;600;700)&display=swap" rel="stylesheet">
     <style>
         /* Stili Personalizzati e Colori Poodl */
         body {
@@ -282,9 +282,36 @@
         'Sunday', 'Monday', 'Tuesday', 'Wednesday', 
         'Thursday', 'Friday', 'Saturday'
     ];
+    
+    /**
+     * Funzione ausiliaria per ottenere l'offset UTC in minuti (affidabile anche con DST).
+     * CORREZIONE: Risolto RangeError non usando '12' come stringa di opzione.
+     * @param {Date} date - Data di riferimento (per DST).
+     * @param {string} timeZone - IANA Time Zone ID (es. 'Europe/London').
+     * @returns {number} Offset del fuso orario rispetto a UTC in minuti (es. +60 per BST).
+     */
+    function getUTCOffsetMinutes(date, timeZone) {
+        // Usiamo un punto di riferimento fisso (12:00 UTC) per determinare l'offset 
+        // del fuso orario target (UK_TZ) rispetto a UTC in quel giorno specifico (gestendo DST).
+        const utcDate = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0); 
+        
+        // 1. Convertiamo l'istante 12:00 UTC nell'ora corrispondente nel fuso orario UK.
+        // Se UK è GMT (UTC+0), l'ora sarà 12. Se UK è BST (UTC+1), l'ora sarà 13.
+        const hourInUK = new Date(utcDate).toLocaleString('en-US', {
+            timeZone: timeZone, 
+            hour: 'numeric', // Opzione corretta per l'ora
+            hour12: false
+        });
+        
+        // 2. L'offset è: (Ora in UK - 12) * 60 minuti.
+        const offsetHours = parseInt(hourInUK) - 12;
+        
+        return offsetHours * 60; // Restituisce +60 per BST (UTC+1), 0 per GMT (UTC+0).
+    }
+
 
     /**
-     * Converte l'orario UK in orario locale per la visualizzazione.
+     * Converte l'orario UK (Europe/London) in orario locale per la visualizzazione.
      * @param {number} dayIndex - Giorno della settimana UK (0-6).
      * @param {number} hour - Ora UK (0-23).
      * @param {number} minute - Minuto UK (0-59).
@@ -294,11 +321,11 @@
         const UK_TZ = 'Europe/London';
         const now = new Date();
         
-        // Calcola l'offset di giorni per raggiungere il giorno della settimana specificato
-        const currentDay = new Date(now.toLocaleString('en-US', { timeZone: UK_TZ })).getDay();
-        let daysToAdd = (dayIndex - currentDay + 7) % 7;
+        // 1. Determina il giorno di calendario per la prossima riunione
+        const currentDayUK = new Date(now.toLocaleString('en-US', { timeZone: UK_TZ })).getDay();
+        let daysToAdd = (dayIndex - currentDayUK + 7) % 7;
         
-        // Regola l'offset se l'orario è già passato in UK oggi
+        // Se stesso giorno, verifica se l'orario è già passato
         if (daysToAdd === 0) {
             const ukTimeNow = new Date(now.toLocaleString('en-US', { timeZone: UK_TZ }));
             const scheduledUKMinutes = hour * 60 + minute;
@@ -310,20 +337,36 @@
         
         const targetDate = new Date();
         targetDate.setDate(now.getDate() + daysToAdd);
+        
+        // 2. Calcola l'offset UK per la data di riferimento.
+        const targetDateForOffset = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 12, 0, 0); 
+        const ukOffsetMinutes = getUTCOffsetMinutes(targetDateForOffset, UK_TZ);
 
-        // Costruisce la data e ora UK nel fuso orario locale, poi la converte
-        const scheduledTimeUKString = new Date(
+        // 3. Calcola il timestamp UTC per il momento desiderato in UK_TZ.
+        
+        // Timestamp di mezzanotte UTC del giorno target
+        const targetDateUTC = new Date(Date.UTC(
             targetDate.getFullYear(), 
             targetDate.getMonth(), 
             targetDate.getDate(), 
-            hour, 
-            minute
-        ).toLocaleString('en-US', { timeZone: UK_TZ });
+            0, 0, 0 
+        ));
+
+        // Millisecondi totali per il momento desiderato (UK Time -> UTC)
+        // [Ora UK] - [Offset UK da UTC] = [Ora UTC]
+        const scheduledTimestampUTC = targetDateUTC.getTime() + 
+                                      (hour * 60 * 60 * 1000) + 
+                                      (minute * 60 * 1000) - 
+                                      (ukOffsetMinutes * 60 * 1000);
         
-        const scheduledTimeUK = new Date(scheduledTimeUKString);
+        const scheduledTimeUTC = new Date(scheduledTimestampUTC);
+
+        if (isNaN(scheduledTimeUTC.getTime())) {
+             console.error("Failed to calculate UTC time for UK schedule.");
+             return { formattedTime: 'Conversion Error', tzAcronym: 'ERR' };
+        }
         
-        
-        // Formatta l'orario nel fuso orario locale dell'utente
+        // 4. Formatta l'orario UTC nel fuso orario locale dell'utente
         const localOptions = {
             weekday: 'short', 
             day: 'numeric', 
@@ -334,16 +377,18 @@
             timeZoneName: 'short'
         };
         
-        const formattedLocalTimeFull = scheduledTimeUK.toLocaleString(navigator.language, localOptions);
+        const formattedLocalTimeFull = scheduledTimeUTC.toLocaleString(navigator.language, localOptions);
 
         // Estrae l'acronimo del fuso orario e l'ora formattata
         const tzMatch = formattedLocalTimeFull.match(/\b([A-Z]{3,5})\b/);
         const tzAcronym = tzMatch ? tzMatch[1] : 'Local Time'; 
         
-        // Pulisce la stringa temporale dall'acronimo
+        // Pulisce la stringa temporale dall'acronimo e dalla virgola (specifica di alcuni locali)
         let finalTime = formattedLocalTimeFull.replace(tzAcronym, '').trim(); 
         finalTime = finalTime.replace(/,\s*$/, '').trim(); 
         finalTime = finalTime.replace(/^,\s*/, '').trim();
+
+        console.log(`[CONVERSIONE VERIFICATA] UK Time (${hour}:${minute}) -> Offset UK: ${ukOffsetMinutes} min. -> Ora Locale: ${finalTime} ${tzAcronym}`);
 
         return { formattedTime: finalTime, tzAcronym: tzAcronym };
     }
