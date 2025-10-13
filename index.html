@@ -45,13 +45,14 @@
             top: 20px;
             left: 20px;
             font-size: 32px; /* Emoji size */
-            cursor: pointer;
+            cursor: default; /* Change cursor to default, as it's no longer clickable */
             transition: transform 0.2s ease;
             text-decoration: none;
             z-index: 10; /* Ensure it's on top */
         }
         .lang-switch:hover {
-            transform: scale(1.1);
+            /* Rimuove l'effetto hover di trasformazione dato che non è più un link, ma lo mantengo per coerenza */
+            transform: scale(1.1); 
         }
 
         .loading-icon, .status-icon { margin: 0 auto 15px; }
@@ -59,8 +60,11 @@
 </head>
 <body>
 
-<!-- Language Switch Icon (Italian Flag to go back to the Italian page) -->
-<a href="https://marc-industries.github.io/poodl-meeting/indexITA.html" class="lang-switch" title="Passa a Italiano">🇮🇹</a>
+<!-- Contenitore dinamico per la bandiera locale dell'utente -->
+<div id="dynamic-flag-container" class="lang-switch" title="Bandiera basata sul Fuso Orario Locale">
+    <!-- Bandiera predefinita, verrà aggiornata via JS -->
+    <span role="img" aria-label="Bandiera locale">🌐</span>
+</div>
 
 <div class="container">
     <!-- Initial Loading Icon / Status Icon -->
@@ -89,9 +93,6 @@
     // ALL CALLS ARE 1 HOUR LONG.
     
     const SCHEDULE = [
-        // Monday (1): 8:30 AM
-        //{ day: 1, startHour: 8, startMinute: 30, endHour: 9, endMinute: 30, link: "https://us06web.zoom.us/j/89251482119?pwd=bN0yvyxCxPEPOdJ4WA1bjHCxaaRuqC.1", description: "Monday Morning Call (8:30 AM UK Time)" },
-        
         // Tuesday (2): 7:00 PM
         { day: 2, startHour: 19, startMinute: 0, endHour: 20, endMinute: 0, link: "https://us06web.zoom.us/j/81102996182?pwd=J9kR9aWTwg6SaW31WQp3ojdEOvEY8c.1", description: "Tuesday Evening Call (7:00 PM UK Time)" },
         
@@ -112,6 +113,45 @@
     // Default link when no calls are active or scheduled.
     const FALLBACK_URL = "https://marc-industries.github.io/poodl-meeting/schedule_uk.html"; 
 
+    // --------------------------------------------------------
+    // HELPER FUNCTIONS FOR FLAG AND TIME ZONE
+    // --------------------------------------------------------
+
+    /**
+     * Estrae il codice Paese (es. 'IT', 'US') dal locale del browser.
+     * @returns {string} Codice Paese a due lettere o 'GB' come fallback.
+     */
+    function getCountryCodeFromLocale() {
+        try {
+            // Ottiene il locale risolto dal browser (es. 'it-IT', 'en-US')
+            const locale = Intl.DateTimeFormat().resolvedOptions().locale; 
+            const parts = locale.split('-');
+            if (parts.length > 1 && parts[1].length === 2) {
+                // Restituisce la seconda parte in maiuscolo (il codice Paese)
+                return parts[1].toUpperCase();
+            }
+        } catch (e) {
+            console.error("Could not determine locale country code:", e);
+        }
+        // Fallback al Regno Unito (GB) se non si riesce a determinare il locale
+        return 'GB'; 
+    }
+
+    /**
+     * Converte un codice Paese ISO 3166-1 alpha-2 in un'emoji bandiera.
+     * @param {string} countryCode - Codice Paese a due lettere (es. 'IT').
+     * @returns {string} Emoji della bandiera.
+     */
+    function getEmojiFlag(countryCode) {
+        if (!countryCode) return '🌐'; // Globo come fallback
+        const code = countryCode.toUpperCase();
+        // Le emoji bandiera si basano su due caratteri regionali indicatori (RIFF)
+        // che corrispondono a lettere maiuscole con un offset Unicode di 127397.
+        return String.fromCodePoint(
+            ...code.split('').map(char => 127397 + char.charCodeAt())
+        );
+    }
+    
     // --------------------------------------------------------
     // LOGIC FUNCTIONS
     // --------------------------------------------------------
@@ -204,7 +244,13 @@
         const detailsElement = document.getElementById('status-details');
         const buttonElement = document.getElementById('dynamic-button');
         const iconElement = document.getElementById('status-icon');
-
+        const flagContainer = document.getElementById('dynamic-flag-container');
+        
+        // 1. IMPOSTA LA BANDIERA LOCALE DELL'UTENTE
+        const userCountryCode = getCountryCodeFromLocale();
+        const userFlag = getEmojiFlag(userCountryCode);
+        flagContainer.textContent = userFlag;
+        
         // Hide rotating loading icon
         iconElement.innerHTML = ''; 
         // Remove old dynamic classes
@@ -237,18 +283,6 @@
                 // CASE 2: UPCOMING CALL (Custom Color #5A3FA3)
                 const nextTime = statusResult.nextCallTime;
                 
-                // --- UK Time formatting (used for the description/parentheses) ---
-                const ukDateOptions = { 
-                    weekday: 'long', 
-                    day: 'numeric', 
-                    month: 'long', 
-                    hour: '2-digit', 
-                    minute: '2-digit', 
-                    timeZone: 'Europe/London',
-                    hour12: true // Ensure AM/PM format
-                };
-                const formattedUKTime = nextTime.toLocaleTimeString('en-GB', ukDateOptions);
-
                 // --- LOCAL Time formatting (used for the main display) ---
                 const localOptions = {
                     weekday: 'long', 
@@ -260,16 +294,16 @@
                     timeZoneName: 'short' // Request the time zone acronym (e.g., CEST, PDT)
                 };
                 
-                // Use the user's local locale (browser default) to format the time
+                // Utilizza il locale dell'utente per formattare l'orario
                 const formattedLocalTime = nextTime.toLocaleTimeString(navigator.language, localOptions);
 
-                // Attempt to extract the time zone short name from the formatted string
-                // The time zone name is usually the last word. This is a heuristic, but reliable with 'timeZoneName: "short"'.
-                const parts = formattedLocalTime.split(' ');
-                const localTimeZoneAcronym = parts.pop().replace(/[^a-zA-Z]/g, ''); // Get the last part and clean it
+                // Estrae l'acronimo del fuso orario (es. CEST)
+                // Usiamo un RegEx per un'estrazione più pulita e affidabile dell'acronimo.
+                const tzMatch = formattedLocalTime.match(/\b([A-Z]{3,5})\b/);
+                const localTimeZoneAcronym = tzMatch ? tzMatch[1] : 'Local Time'; 
                 
-                // Remove the time zone name from the main display time
-                const mainDisplayTime = formattedLocalTime.replace(localTimeZoneAcronym, '').trim();
+                // Rimuove l'acronimo dal tempo formattato per il display principale
+                const mainDisplayTime = formattedLocalTime.replace(localTimeZoneAcronym, '').trim().replace(',', '');
 
 
                 titleElement.textContent = "We are not live right now.";
@@ -311,6 +345,7 @@
     // START
     // --------------------------------------------------------
 
+    // Inizializza e aggiorna lo stato e la bandiera
     const status = getCallStatus();
     updateUI(status);
 </script>
