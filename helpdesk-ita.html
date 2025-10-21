@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poodl Membership - Riferimento Membership & HelpDesk</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Importa Ethers.js per la comunicazione con la Blockchain -->
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <style>
+        /* CONFIGURAZIONE TAILWIND & FONT */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f8fa; 
+            min-height: 100vh;
+        }
+        .container-wrapper {
+            max-width: 1200px; 
+            margin: 0 auto;
+            padding: 15px; 
+        }
+        .main-card {
+            background: white;
+            border-radius: 24px; 
+            box-shadow: 0 15px 50px rgba(0,0,0,0.1); 
+            padding: 30px; 
+        }
+        /* Colori e Gradiente Poodl Ufficiali */
+        .poodl-primary { color: #1f4287; } 
+        .poodl-secondary { color: #a33f52; } 
+        .poodl-gradient-bg {
+            background: linear-gradient(90deg, #1f4287 0%, #a33f52 100%); 
+        }
+        /* Header fisso (Sticky) */
+        .fixed-header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            padding: 0.75rem 0; 
+            background-color: #f5f8fa; 
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+        .price-display-lg {
+            font-size: 3.5rem; 
+            font-weight: 900;
+            line-height: 1;
+            background: linear-gradient(45deg, #1f4287, #a33f52);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.05);
+        }
+
+        /* Stili per le Card di Membership */
+        .membership-card {
+            border-radius: 20px; 
+            padding: 25px; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08); 
+        }
+        .price-box .total {
+            font-size: 2.5rem; 
+            font-weight: 900;
+            color: #a33f52;
+        }
+
+        /* Stili per le Istruzioni Operative */
+        .os-box {
+            border-radius: 20px; 
+            padding: 25px; 
+        }
+        .step {
+            /* Stile 1, 2, 3... */
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-left: 4px solid #1f4287; /* Linea verticale Poodl Blue */
+            padding-left: 15px; 
+            position: relative;
+            font-size: 0.95rem; 
+        }
+        .step-number {
+            position: absolute;
+            left: -20px;
+            top: 0;
+            background-color: #a33f52;
+            color: white;
+            width: 30px; 
+            height: 30px; 
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem; 
+            box-shadow: 0 0 0 4px #f5f8fa; 
+        }
+        /* Simbolo di aggiornamento */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+
+        /* Stile per il box di errore RPC (Modale/Tooltip) */
+        .rpc-error-modal {
+            position: absolute;
+            top: 100%; /* Sotto il disclaimer */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%; 
+            max-width: 400px;
+            z-index: 60;
+            display: none; /* Nascosto di default */
+            margin-top: 10px;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            background-color: #fef2f2;
+            border: 1px solid #fca5a5;
+            color: #ef4444;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header con Prezzo del Token Fisso (Sticky) -->
+<div class="fixed-header">
+    <div class="container-wrapper">
+        <div class="flex flex-col sm:flex-row justify-between items-center poodl-gradient-bg text-white p-4 rounded-xl shadow-xl">
+            <h1 class="text-xl sm:text-2xl font-extrabold mb-1 sm:mb-0">POODL NETWORK - RIFERIMENTO VENDITA</h1>
+            <div class="text-right flex items-center">
+                <span class="text-sm sm:text-lg font-semibold text-gray-100 mr-3">1 POODL:</span>
+                <span id="current-poodl-price" class="text-xl sm:text-2xl font-extrabold flex items-center">
+                    <!-- Spinner visibile durante il caricamento -->
+                    <svg id="loading-spinner-header" class="w-5 h-5 mr-2 spinner text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.28 15.79l-1.838 1.838A10.034 10.034 0 0022 12c0-5.523-4.477-10-10-10"></path></svg>
+                    <span>Caricamento...</span>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contenuto Principale -->
+<div class="container-wrapper pt-10 sm:pt-16">
+    <div class="main-card">
+        
+        <!-- Sezione 1: Valore e Disclaimer -->
+        <section class="text-center mb-10">
+            <h2 class="text-3xl font-extrabold text-gray-900 mb-4">Valore Corrente 1 POODL</h2>
+            
+            <div class="inline-block p-6 rounded-2xl bg-gray-50 border border-gray-200 shadow-md">
+                <p class="text-lg font-medium mb-1 text-gray-600">Prezzo 1 POODL in USDT:</p>
+                <div id="poodl-value-usd" class="price-display-lg flex items-center justify-center">
+                    <span class="text-xl font-light mr-2">Loading...</span>
+                </div>
+            </div>
+
+            <!-- Box del Disclaimer e Icona/Modale -->
+            <div class="relative max-w-md mx-auto mt-4">
+                <div id="disclaimer-price" class="text-sm font-bold p-3 rounded-xl border-l-4 border-red-500 bg-red-50 text-red-700 flex items-center justify-center space-x-2">
+                    <!-- Il testo viene aggiornato da JS -->
+                    <span>⚠️ **STATO AGGIORNAMENTO PREZZO:** Inizializzazione...</span>
+                    
+                    <!-- Icona Cliccabile che attiva il Modale (Inizialmente nascosta) -->
+                    <button id="error-info-button" class="text-red-700 hover:text-red-900 focus:outline-none transition duration-150 ease-in-out hidden" onclick="toggleErrorModal()">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </button>
+                </div>
+                
+                <!-- Modale/Tooltip di Errore (Assolutamente Posizionato Sotto) -->
+                <div id="rpc-error-modal" class="rpc-error-modal">
+                    <p class="font-bold mb-2">ERRORE DI CONNESSIONE RPC:</p>
+                    <p id="error-detail-text">Non è stato possibile comunicare con il nodo della Blockchain Poodl (`https://rpc.poodl.org`). Il prezzo mostrato è di fallback.</p>
+                    <ul class="list-disc ml-5 mt-2 text-sm text-red-600">
+                        <li>Possibile blocco di sicurezza (CORS) nell'ambiente di esecuzione.</li>
+                        <li>Il nodo Poodl RPC è temporaneamente non disponibile.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sezione 2: Piani di Membership -->
+        <section class="mb-12">
+            <h3 class="text-3xl font-bold poodl-primary mb-8 text-center">Piani Membership e Costi Totali (Informativi)</h3>
+            
+            <div id="membership-plans-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- I piani verranno generati qui da JavaScript -->
+            </div>
+        </section>
+
+        <!-- Sezione 3: Istruzioni Operative (Il tuo codice originale per le istruzioni è invariato) -->
+        <section class="pt-6 border-t border-gray-200">
+            <h3 class="text-3xl font-bold text-gray-900 mb-6 text-center">Istruzioni Dettagliate per la Membership</h3>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <!-- Android -->
+                <div class="os-box">
+                    <h4 class="text-xl font-bold poodl-secondary mb-6 flex items-center">
+                        <svg class="w-6 h-6 mr-3" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18.8 3.518c-.808-.553-1.834-.84-2.888-.82l-7.46.03c-1.048.016-2.062.302-2.86.848C4.846 3.993 4 5.38 4 7.025v9.95c0 1.64 1.137 3.03 2.766 3.498.81.236 1.65.347 2.502.348h7.525c.852 0 1.692-.112 2.502-.348 1.629-.468 2.766-1.858 2.766-3.498V7.025c0-1.64-.846-3.03-2.15-3.507zM12 18.25c-.966 0-1.75-.784-1.75-1.75s.784-1.75 1.75-1.75 1.75.784 1.75 1.75-.784 1.75-1.75 1.75zM15 9.125c0-.414.336-.75.75-.75h.5c.414 0 .75.336.75.75v.5c0 .414-.336.75-.75.75h-.5c-.414 0-.75-.336-.75-.75v-.5zM7 9.125c0-.414.336-.75.75-.75h.5c.414 0 .75.336.75.75v.5c0 .414-.336.75-.75.75h-.5c-.414 0-.75-.336-.75-.75v-.5z"/></svg>
+                        Per Android (Poodl Wallet)
+                    </h4>
+                    <div class="text-sm text-gray-700 space-y-3">
+                        <!-- Elenco Istruzioni Android -->
+                        <div class="step"><span class="step-number">1</span> installare poodl wallet</div>
+                        <div class="step"><span class="step-number">2</span> inviare ethereum (rete erc20) da un Exchange o da un altro portafoglio a poodl wallet (passare da centralizzato a decentralizzato)</div>
+                        <div class="step"><span class="step-number">3</span> inviare ethereum (rete erc20) da poodl wallet all'indirizzo: <strong class="text-blue-600 break-words">0x2a286aBFD71E5C4cc2b1F76B40d1f8f0B2047A63</strong></div>
+                        <div class="step"><span class="step-number">4</span> ricevi i poodl in automatico su poodl wallet</div>
+                        <div class="step"><span class="step-number">5</span> in poodl wallet selezionare **Browser** e inserire: <a href="https://members.poodl.org" target="_blank" class="text-blue-600 hover:underline font-medium">members.poodl.org</a></div>
+                        <div class="step"><span class="step-number">6</span> connettere il wallet (tre linee → **Wallet Connect** → Browser / Select Wallet)</div>
+                        <div class="step"><span class="step-number">7</span> scegliere la membership e incollare il codice promozionale dell'invitante</div>
+                        <div class="step"><span class="step-number">8</span> confermare l'acquisto dal wallet</div>
+                        <div class="step"><span class="step-number">9</span> collegarsi a <a href="https://stake.poodl.org" target="_blank" class="text-blue-600 hover:underline font-medium">stake.poodl.org</a> per lo staking permanente e il ritiro dei rewards ogni 2 minuti.</div>
+                        <div class="step"><span class="step-number">10</span> da <a href="https://members.poodl.org" target="_blank" class="text-blue-600 hover:underline font-medium">members.poodl.org</a> generare il **referral code** personale.</div>
+                    </div>
+                </div>
+
+                <!-- iPhone/PC -->
+                <div class="os-box">
+                    <h4 class="text-xl font-bold poodl-secondary mb-6 flex items-center">
+                         <svg class="w-6 h-6 mr-3" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19.1 10.96c-.052-1.2-.676-2.316-1.574-3.17-.98-.92-2.185-1.428-3.483-1.488-1.554-.07-2.933.72-3.726.72-.793 0-1.928-.72-3.482-.72-1.258 0-2.438.487-3.32 1.354-.784.81-1.332 1.96-1.396 3.238-.168 3.39 2.11 6.84 4.09 9.38 1.054 1.346 2.164 2.822 3.65 2.822 1.48 0 2.457-1.127 3.737-1.127 1.28 0 2.227 1.127 3.737 1.127 1.545 0 2.485-1.5 3.51-2.736.953-1.17 1.43-2.33 1.536-2.58.07-.168.083-.168.188-.168.08 0 .15.013.254.013.045 0 .102-.007.135-.007.11 0 .21-.013.315-.013-.027-.376-.328-1.636-.57-2.868zM15.5 2.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/></svg>
+                        Per iPhone / PC (Metamask)
+                    </h4>
+                    <div class="text-sm text-gray-700 space-y-3">
+                        <!-- Elenco Istruzioni iPhone/PC -->
+                        <div class="step"><span class="step-number">1</span> installare **Metamask** su PC o cellulare.</div>
+                        <div class="step"><span class="step-number">2</span> inviare ethereum (rete erc20) da un Exchange o da un altro portafoglio a Metamask</div>
+                        <div class="step"><span class="step-number">3</span> inviare ethereum (rete erc20) da Metamask all'indirizzo: <strong class="text-blue-600 break-words">0x2a286aBFD71E5C4cc2b1F76B40d1f8f0B2047A63</strong></div>
+                        <div class="step"><span class="step-number">4</span> aggiungere la rete poodl su Metamask (Switch network - Custom Network):
+                            <ul class="ml-4 mt-2 list-disc list-inside text-xs bg-gray-50 p-2 rounded-lg border border-gray-200">
+                                <li>**Network Name**: Poodl Mainnet</li>
+                                <li>**RPC URL**: https://rpc.poodl.org</li>
+                                <li>**CHAIN ID**: 15259</li>
+                                <li>**SYMBOL**: POODL</li>
+                                <li>**Block Explorer URL**: https://explorer.poodl.org</li>
+                            </ul>
+                        </div>
+                        <div class="step"><span class="step-number">5</span> ricevi i poodl in automatico su Metamask</div>
+                        <div class="step"><span class="step-number">6</span> in MetaMask selezionare **Browser** e inserire: <a href="https://members.poodl.org" target="_blank" class="text-blue-600 hover:underline font-medium">members.poodl.org</a></div>
+                        <div class="step"><span class="step-number">7</span> connettere il wallet e seguire la procedura di acquisto</div>
+                        <div class="step"><span class="step-number">8</span> scegliere la membership e incollare il codice promozionale dell'invitante</div>
+                        <div class="step"><span class="step-number">9</span> confermare l'acquisto dal wallet</div>
+                        <div class="step"><span class="step-number">10</span> collegarsi a <a href="https://stake.poodl.org" target="_blank" class="text-blue-600 hover:underline font-medium">stake.poodl.org</a> per lo staking permanente e i rewards.</div>
+                        <div class="step"><span class="step-number">11</span> da <a href="https://members.poodl.org" target="_blank" class="text-blue-600 hover:underline font-medium">members.poodl.org</a> generare il **referral code** personale.</div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </div>
+</div>
+
+<script>
+    // --------------------------------------------------------
+    // CONFIGURAZIONE BLOCKCHAIN PER IL PREZZO DINAMICO
+    // --------------------------------------------------------
+    
+    const NODE_RPC_URL = "https://rpc.poodl.org"; 
+    const POOL_CONTRACT_ADDRESS = "0x79496e1a473F4F19b2220d91295988e0b9688F80"; 
+
+    const ABI_POOL = [
+        "function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
+        "function token0() view returns (address)",
+        "function token1() view returns (address)"
+    ];
+
+    const TOKEN_DECIMALS = 18; 
+    const FALLBACK_POODL_PRICE_USDT = 5.33835; 
+    const UPDATE_INTERVAL = 86400000; 
+    const MEMBERSHIP_FIXED_COST_USDT = 0; 
+    
+    // Struttura dei Piani di Membership (Mantenuta)
+    const MEMBERSHIP_PLANS = [
+        { POODL_AMOUNT: 10, BONUS_POODL: 1, PROJECTS: 0, desc: "Nessuna partecipazione a progetti blockchain" },
+        { POODL_AMOUNT: 50, BONUS_POODL: 10, PROJECTS: 1, desc: "Partecipazione ad 1 progetto blockchain" },
+        { POODL_AMOUNT: 100, BONUS_POODL: 30, PROJECTS: 2, desc: "Partecipazione a 2 progetti blockchain" },
+        { POODL_AMOUNT: 200, BONUS_POODL: 80, PROJECTS: 3, desc: "Partecipazione a 3 progetti blockchain" },
+        { POODL_AMOUNT: 500, BONUS_POODL: 250, PROJECTS: 4, desc: "Partecipazione a 4 progetti blockchain" },
+        { POODL_AMOUNT: 1000, BONUS_POODL: 600, PROJECTS: 5, desc: "Partecipazione a 5 progetti blockchain" },
+        { POODL_AMOUNT: 2500, BONUS_POODL: 1750, PROJECTS: 6, desc: "Partecipazione a 6 progetti blockchain" },
+        { POODL_AMOUNT: 5000, BONUS_POODL: 4000, PROJECTS: 7, desc: "Partecipazione a 7 progetti blockchain" },
+        { POODL_AMOUNT: 10000, BONUS_POODL: 9000, PROJECTS: 10, desc: "Partecipazione a 10 progetti blockchain" },
+    ];
+    
+    // Variabile per memorizzare l'ultimo errore (se presente)
+    let lastRpcError = null; 
+    let isModalVisible = false;
+
+    // --------------------------------------------------------
+    // FUNZIONI DI UTILITY
+    // --------------------------------------------------------
+
+    /**
+     * Toggles la visibilità del modale di errore RPC.
+     */
+    window.toggleErrorModal = function() {
+        const modal = document.getElementById('rpc-error-modal');
+        isModalVisible = !isModalVisible;
+        modal.style.display = isModalVisible ? 'block' : 'none';
+        
+        // Chiudi il modale se l'utente clicca fuori
+        if (isModalVisible) {
+             document.addEventListener('click', closeErrorModalOutside, true);
+        } else {
+             document.removeEventListener('click', closeErrorModalOutside, true);
+        }
+    }
+    
+    function closeErrorModalOutside(event) {
+        const modal = document.getElementById('rpc-error-modal');
+        const button = document.getElementById('error-info-button');
+        
+        // Se il click non è sul modale e non è sul bottone, chiudi
+        if (modal && !modal.contains(event.target) && !button.contains(event.target)) {
+            modal.style.display = 'none';
+            isModalVisible = false;
+            document.removeEventListener('click', closeErrorModalOutside, true);
+        }
+    }
+
+    /**
+     * Formatta i valori USD con due decimali per il costo totale.
+     */
+    function formatUSDValue(value) {
+        if (value > 1e20) {
+             return `$ ${value.toExponential(2)}`;
+        }
+        return value.toLocaleString('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).replace('$', '$ ');
+    }
+
+    /**
+     * Formatta il prezzo del token con alta precisione (4-6 cifre).
+     */
+    function formatTokenPrice(price) {
+        if (price === 0) return '$ 0.0000';
+        return price.toLocaleString('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 4,
+            maximumFractionDigits: 6 
+        }).replace('$', '$ '); 
+    }
+
+    // --------------------------------------------------------
+    // FUNZIONI DI VISUALIZZAZIONE
+    // --------------------------------------------------------
+
+    /**
+     * Calcola e aggiorna i box della membership.
+     * @param {number} poodlPrice - Prezzo attuale di 1 POODL in USDT.
+     */
+    function updateMembershipPlans(poodlPrice) {
+        const container = document.getElementById('membership-plans-container');
+        let html = '';
+
+        MEMBERSHIP_PLANS.forEach(plan => {
+            const poodlCost = plan.POODL_AMOUNT * poodlPrice;
+            const totalUSD = poodlCost + MEMBERSHIP_FIXED_COST_USDT;
+            
+            const isFeatured = plan.POODL_AMOUNT === 10000;
+            const cardClass = isFeatured ? 'membership-card featured bg-gray-50 border-2 border-poodl-secondary relative' : 'membership-card relative bg-white';
+            
+            html += `
+                <div class="${cardClass}">
+                    ${isFeatured ? `<div class="absolute top-0 right-0 p-2 poodl-gradient-bg text-white text-xs font-bold uppercase rounded-bl-xl shadow-md">TOP SELLER</div>` : ''}
+                    <div>
+                        <!-- Titolo del Piano (Quantità POODL) -->
+                        <div class="text-lg font-bold uppercase text-gray-500 mb-2">${plan.POODL_AMOUNT.toLocaleString('it-IT')} POODL</div>
+                        <h4 class="text-3xl font-extrabold poodl-primary mb-4">Piano Base</h4>
+                        
+                        <!-- Prezzo Calcolato Dinamicamente (Informazione Chiave per la Vendita) -->
+                        <div class="price-box mb-4">
+                            <p class="text-xs text-gray-800 font-bold uppercase mb-1">Costo Totale USDT Stimato</p>
+                            <p class="total">${formatUSDValue(totalUSD)}</p>
+                        </div>
+
+                        <!-- Dettagli della Composizione (Rimosso costo fisso) -->
+                        <div class="text-sm text-gray-700 space-y-2 mb-5">
+                            <p class="font-medium">Costo POODL: <span class="font-extrabold text-gray-900">${formatUSDValue(poodlCost)}</span></p>
+                        </div>
+
+
+                        <!-- Benefici -->
+                        <ul class="text-sm text-gray-700 space-y-2 border-t-2 border-gray-100 pt-3">
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2 font-bold text-base">🎁</span>
+                                <span class="font-semibold">${plan.BONUS_POODL.toLocaleString('it-IT')} POODL in regalo</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2 font-bold text-base">💡</span>
+                                <span>${plan.desc}</span>
+                            </li>
+                            ${plan.PROJECTS > 0 ? `
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2 font-bold text-base">🚀</span>
+                                <span>Partecipazione a ${plan.PROJECTS} Progetti Blockchain</span>
+                            </li>
+                            ` : ''}
+                        </ul>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+
+    /**
+     * Aggiorna tutti gli elementi della UI con il prezzo e i calcoli.
+     * @param {number} poodlPrice - Prezzo attuale di 1 POODL in USDT.
+     * @param {boolean} isDynamic - Se il prezzo è stato recuperato dinamicamente.
+     */
+    function updateUI(poodlPrice, isDynamic) {
+        const formattedPrice = formatTokenPrice(poodlPrice);
+        const disclaimer = document.getElementById('disclaimer-price');
+        const errorButton = document.getElementById('error-info-button');
+        const updateTime = new Date().toLocaleTimeString('it-IT');
+
+        // Nasconde lo spinner e aggiorna il testo
+        const loadingSpinnerHeader = document.getElementById('loading-spinner-header');
+        if (loadingSpinnerHeader) loadingSpinnerHeader.style.display = 'none';
+
+        // Aggiorna l'header (Sticky)
+        const headerPriceEl = document.getElementById('current-poodl-price').querySelector('span');
+        if (headerPriceEl) {
+            headerPriceEl.innerHTML = formattedPrice;
+        }
+
+        // Aggiorna la sezione grande centrale
+        const largePriceEl = document.getElementById('poodl-value-usd');
+        if (largePriceEl) {
+            largePriceEl.innerHTML = formattedPrice;
+        }
+        
+        // Aggiorna il disclaimer
+        if (isDynamic) {
+            disclaimer.innerHTML = `<span>✅ **STATO AGGIORNAMENTO PREZZO:** Prezzo recuperato direttamente dalla **Blockchain POODL**. Ultimo aggiornamento: ${updateTime}</span>`;
+            disclaimer.className = 'text-sm font-bold p-3 rounded-xl border-l-4 border-green-500 bg-green-50 text-green-700 flex items-center justify-center space-x-2';
+            errorButton.classList.add('hidden'); // Nasconde l'icona
+            document.getElementById('rpc-error-modal').style.display = 'none'; // Assicura che il modale sia chiuso
+        } else {
+            // Se errore, mostra l'icona e aggiorna il testo
+            disclaimer.innerHTML = `<span>⚠️ **STATO AGGIORNAMENTO PREZZO:** Errore nel recupero Blockchain. Utilizzo del prezzo statico di fallback di **${formatTokenPrice(FALLBACK_POODL_PRICE_USDT)}**. Ultimo tentativo: ${updateTime}</span>`;
+            disclaimer.className = 'text-sm font-bold p-3 rounded-xl border-l-4 border-red-500 bg-red-50 text-red-700 flex items-center justify-center space-x-2';
+            errorButton.classList.remove('hidden'); // Mostra l'icona cliccabile
+            
+            // Aggiorna il testo di dettaglio dell'errore (usa l'ultimo errore noto o il testo predefinito)
+            const errorText = lastRpcError || `Non è stato possibile comunicare con il nodo della Blockchain Poodl.`;
+            document.getElementById('error-detail-text').innerText = errorText;
+        }
+
+        // Aggiorna i piani di membership
+        updateMembershipPlans(poodlPrice);
+    }
+
+    // --------------------------------------------------------
+    // FUNZIONE DI FETCH DEL PREZZO DALLA BLOCKCHAIN
+    // --------------------------------------------------------
+    
+    /**
+     * Crea un Provider Ethers.js con un meccanismo di timeout.
+     * @param {string} url - L'URL RPC del nodo.
+     * @param {number} timeoutMs - Timeout in millisecondi.
+     */
+    function getTimedProvider(url, timeoutMs = 8000) {
+        // Logica di controllo per Ethers.js (come precedentemente concordato)
+        if (typeof ethers === 'undefined' || !ethers.providers) {
+            throw new Error("Libreria Ethers.js non definita. Impossibile creare il provider.");
+        }
+        
+        const provider = new ethers.providers.JsonRpcProvider(url);
+
+        // Sovrascrive il metodo send per forzare un timeout sulla richiesta di rete
+        const originalSend = provider.send.bind(provider);
+        provider.send = (method, params) => {
+            return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                    reject(new Error(`Timeout RPC: La richiesta a ${url} è scaduta dopo ${timeoutMs / 1000}s.`));
+                }, timeoutMs);
+
+                originalSend(method, params).then(result => {
+                    clearTimeout(timer);
+                    resolve(result);
+                }).catch(error => {
+                    clearTimeout(timer);
+                    reject(error);
+                });
+            });
+        };
+        return provider;
+    }
+
+
+    /**
+     * Recupera e calcola il prezzo del token interrogando il contratto del pool sulla blockchain.
+     */
+    async function fetchPriceFromBlockchain() {
+        try {
+            // 1. Inizializza il provider Ethers.js
+            const provider = getTimedProvider(NODE_RPC_URL, 8000);
+            
+            // 2. Crea un'istanza del contratto del Pool
+            const poolContract = new ethers.Contract(POOL_CONTRACT_ADDRESS, ABI_POOL, provider);
+
+            // 3. Chiama la funzione getReserves() per ottenere le riserve di liquidità
+            const reserves = await poolContract.getReserves();
+            
+            // 4. Chiama token0() e token1() per sapere quale riserva corrisponde a quale token
+            const token0Address = await poolContract.token0();
+            const token1Address = await poolContract.token1();
+
+            // L'indirizzo del POODL Token nativo sulla Poodl Chain
+            const POODL_ADDRESS = "0x0000000000000000000000000000000000000001";
+            
+            let reservePOODL, reserveUSDT;
+
+            // Determina la riserva POODL e USDT
+            if (token0Address.toLowerCase() === POODL_ADDRESS.toLowerCase()) {
+                reservePOODL = reserves.reserve0;
+                reserveUSDT = reserves.reserve1;
+            } else if (token1Address.toLowerCase() === POODL_ADDRESS.toLowerCase()) {
+                reservePOODL = reserves.reserve1;
+                reserveUSDT = reserves.reserve0;
+            } else {
+                 throw new Error("Il pool non contiene il token POODL nativo (0x0...0001) in T0 o T1.");
+            }
+
+            // 5. Conversione da BigNumber a float
+            const POODL_float = parseFloat(ethers.utils.formatUnits(reservePOODL, TOKEN_DECIMALS));
+            const USDT_float = parseFloat(ethers.utils.formatUnits(reserveUSDT, TOKEN_DECIMALS));
+
+            if (POODL_float === 0) throw new Error("Riserva POODL pari a zero.");
+
+            // 6. Calcolo del prezzo: Prezzo 1 POODL = Riserva USDT / Riserva POODL
+            const poodlPrice = USDT_float / POODL_float;
+            
+            if (isNaN(poodlPrice) || poodlPrice <= 0) {
+                 throw new Error("Calcolo del prezzo non valido (NaN o <= 0).");
+            }
+            
+            // Prezzo recuperato con successo, azzera l'ultimo errore
+            lastRpcError = null; 
+            return { price: poodlPrice, isDynamic: true };
+
+        } catch (error) {
+            console.error(`ERRORE RPC/BLOCKCHAIN: ${error.message}`);
+            // Memorizza l'errore per il modale
+            lastRpcError = `Dettaglio tecnico: ${error.message}`; 
+            // Fallback in caso di errore di rete o logica
+            return { price: FALLBACK_POODL_PRICE_USDT, isDynamic: false };
+        }
+    }
+    
+    /**
+     * Funzione principale per l'aggiornamento.
+     */
+    async function fetchAndUpdatePrice() {
+        // Mostra lo spinner
+        const loadingSpinnerHeader = document.getElementById('loading-spinner-header');
+        if (loadingSpinnerHeader) loadingSpinnerHeader.style.display = 'inline-block';
+
+        const { price, isDynamic } = await fetchPriceFromBlockchain();
+
+        updateUI(price, isDynamic);
+    }
+    
+    /**
+     * Inizializza il loop di aggiornamento.
+     */
+    function init() {
+        // Aggiorna subito il prezzo
+        fetchAndUpdatePrice(); 
+        // Imposta l'intervallo di aggiornamento a 24 ore (86400000 millisecondi)
+        setInterval(fetchAndUpdatePrice, UPDATE_INTERVAL);
+    }
+    
+    /**
+     * Logica di Retry per il caricamento di Ethers.js (Fix dal problema precedente)
+     */
+    (function checkEthersAndInit() {
+        let attempts = 0;
+        const maxAttempts = 20; 
+        const delay = 500; 
+
+        function tryInit() {
+            if (typeof ethers !== 'undefined' && ethers.providers) {
+                console.log(`Ethers.js caricato con successo al tentativo ${attempts + 1}. Avvio applicazione.`);
+                init();
+            } else if (attempts < maxAttempts) {
+                console.warn(`Tentativo ${attempts + 1}/${maxAttempts}: Ethers.js non ancora pronto. Riprovo in ${delay}ms...`);
+                attempts++;
+                setTimeout(tryInit, delay);
+            } else {
+                console.error("ERRORE CRITICO: Ethers.js non è stato caricato dopo 20 tentativi. Il prezzo dinamico sarà disabilitato.");
+                // Anche in caso di fallimento Ethers.js, aggiorno la UI con il prezzo statico
+                lastRpcError = "La libreria Ethers.js non è stata caricata. La connessione alla blockchain è impossibile. Viene utilizzato un prezzo statico di fallback.";
+                updateUI(FALLBACK_POODL_PRICE_USDT, false);
+            }
+        }
+        
+        // Avvia la sequenza di tentativi al caricamento del DOM
+        document.addEventListener('DOMContentLoaded', tryInit);
+    })();
+</script>
+
+</body>
+</html>
